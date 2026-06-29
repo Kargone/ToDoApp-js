@@ -1,19 +1,22 @@
 # ToDoApp-js
 
-A simple to-do list application built with HTML, CSS, and JavaScript.
+A dark-mode to-do list application built with HTML, CSS, and JavaScript.
 
 ## Features
 
-- Add new tasks
-- Mark tasks complete by clicking them
-- Remove tasks
-- Responsive, clean UI
+- Add tasks with a due day and optional time
+- No due date option that assigns tasks to today
+- Organize tasks using tabs: Today, Tomorrow, Next 3 Days, Later, Completed
+- Mark tasks complete without removing them
+- Reopen completed tasks
+- Modern dark UI with responsive layout
+- Persistent task storage via localStorage
 
 ## Files
 
 - `index.html` — app structure
-- `styles.css` — app styling
-- `script.js` — app behavior
+- `styles.css` — dark theme and layout
+- `script.js` — task logic, filters, and persistence
 
 ## Run locally
 
@@ -22,7 +25,7 @@ A simple to-do list application built with HTML, CSS, and JavaScript.
 
 ## Next improvements
 
-- Save tasks to local storage
-- Add task editing
-- Add filters for active/completed tasks
-- Add mobile-friendly interactions
+- Add editing for existing tasks
+- Add due-date sorting and overdue highlights
+- Add search and tag support
+- Add a calendar view

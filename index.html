@@ -3,21 +3,60 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Simple ToDo App</title>
+  <title>ToDo App</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <main class="app-shell">
-    <h1>ToDo List</h1>
+    <header class="app-header">
+      <div>
+        <p class="eyebrow">Task Organizer</p>
+        <h1>ToDo App</h1>
+        <p class="subtitle">Track due dates, complete tasks, and keep everything in a smart timeline.</p>
+      </div>
+    </header>
+
     <form id="todo-form" class="todo-form">
-      <input id="todo-input" type="text" placeholder="Add a new task" aria-label="New task" autocomplete="off" />
-      <button type="submit">Add</button>
+      <div class="task-field">
+        <label for="todo-input">Task</label>
+        <input id="todo-input" type="text" placeholder="What do you want to do?" aria-label="New task" autocomplete="off" />
+      </div>
+
+      <div class="form-row">
+        <div class="field">
+          <label for="due-date">Due day</label>
+          <input id="due-date" type="date" />
+        </div>
+
+        <div class="field">
+          <label for="due-time">Due time <span>(optional)</span></label>
+          <input id="due-time" type="time" />
+        </div>
+      </div>
+
+      <div class="form-row form-row-inline">
+        <label class="checkbox-label">
+          <input id="no-due" type="checkbox" />
+          No due date (assign to today)
+        </label>
+        <button type="submit" class="primary-button">Add task</button>
+      </div>
     </form>
+
+    <nav class="tabs" role="tablist">
+      <button type="button" class="tab active" data-tab="today">Today</button>
+      <button type="button" class="tab" data-tab="tomorrow">Tomorrow</button>
+      <button type="button" class="tab" data-tab="next3">Next 3 Days</button>
+      <button type="button" class="tab" data-tab="later">Later</button>
+      <button type="button" class="tab" data-tab="completed">Completed</button>
+    </nav>
+
     <section class="todo-list-shell">
       <ul id="todo-list" class="todo-list"></ul>
-      <p id="empty-state" class="empty-state">No tasks yet. Add one above.</p>
+      <p id="empty-state" class="empty-state">No tasks in this section yet. Add one above.</p>
     </section>
   </main>
+
   <script src="script.js"></script>
 </body>
 </html>
