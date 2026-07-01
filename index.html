@@ -12,51 +12,160 @@
       <div>
         <p class="eyebrow">Task Organizer</p>
         <h1>ToDo App</h1>
-        <p class="subtitle">Track due dates, complete tasks, and keep everything in a smart timeline.</p>
+        <p class="subtitle">Track due dates, repeat tasks, and keep everything in a smart timeline.</p>
       </div>
     </header>
 
-    <form id="todo-form" class="todo-form">
-      <div class="task-field">
-        <label for="todo-input">Task</label>
-        <input id="todo-input" type="text" placeholder="What do you want to do?" aria-label="New task" autocomplete="off" />
+    <section id="search-toolbar" class="toolbar hidden">
+      <div class="search-field">
+        <label for="search-input" class="visually-hidden">Search completed items</label>
+        <input id="search-input" type="search" placeholder="Search completed items…" aria-label="Search completed items" />
       </div>
-
-      <div class="form-row">
-        <div class="field">
-          <label for="due-date">Due day</label>
-          <input id="due-date" type="date" />
-        </div>
-
-        <div class="field">
-          <label for="due-time">Due time <span>(optional)</span></label>
-          <input id="due-time" type="time" />
-        </div>
-      </div>
-
-      <div class="form-row form-row-inline">
-        <label class="checkbox-label">
-          <input id="no-due" type="checkbox" />
-          No due date (assign to today)
-        </label>
-        <button type="submit" class="primary-button">Add task</button>
-      </div>
-    </form>
+    </section>
 
     <nav class="tabs" role="tablist">
       <button type="button" class="tab active" data-tab="today">Today</button>
       <button type="button" class="tab" data-tab="tomorrow">Tomorrow</button>
       <button type="button" class="tab" data-tab="next3">Next 3 Days</button>
       <button type="button" class="tab" data-tab="later">Later</button>
+      <button type="button" class="tab" data-tab="repeating">Repeating</button>
       <button type="button" class="tab" data-tab="completed">Completed</button>
     </nav>
 
     <section class="todo-list-shell">
       <ul id="todo-list" class="todo-list"></ul>
-      <p id="empty-state" class="empty-state">No tasks in this section yet. Add one above.</p>
+      <p id="empty-state" class="empty-state">No items in this section yet. Select a tab or add something below.</p>
+    </section>
+
+    <form id="todo-form" class="todo-form">
+      <div class="task-field">
+        <div class="type-row">
+          <label for="item-type">Item type</label>
+          <select id="item-type">
+            <option value="task">Task</option>
+            <option value="event">Event</option>
+          </select>
+        </div>
+
+        <label for="todo-input">New item</label>
+        <input id="todo-input" type="text" placeholder="Start typing a task or event to show more options" aria-label="New item" autocomplete="off" />
+      </div>
+
+      <div id="advanced-options" class="advanced-options hidden">
+        <div class="form-row item-task">
+          <div class="field">
+            <label for="due-date">Due day</label>
+            <input id="due-date" type="date" />
+          </div>
+
+          <div class="field">
+            <label for="due-time">Due time <span>(optional)</span></label>
+            <input id="due-time" type="time" />
+          </div>
+        </div>
+
+        <div class="form-row item-event hidden">
+          <div class="field">
+            <label for="start-date">Start day</label>
+            <input id="start-date" type="date" />
+          </div>
+
+          <div class="field">
+            <label for="start-time">Start time</label>
+            <input id="start-time" type="time" />
+          </div>
+        </div>
+
+        <div class="form-row item-event hidden">
+          <div class="field">
+            <label for="end-time">End time</label>
+            <input id="end-time" type="time" />
+          </div>
+        </div>
+
+        <div class="form-row item-task" id="task-section-row">
+          <div class="field section-field hidden" id="task-section-field">
+            <label for="task-section">Place in</label>
+            <select id="task-section">
+              <option value="today">Today</option>
+              <option value="later">Later</option>
+            </select>
+          </div>
+
+          <div class="field checkbox-field">
+            <label class="checkbox-label">
+              <input id="no-due" type="checkbox" />
+              No due date
+            </label>
+          </div>
+        </div>
+
+        <div class="repeat-settings">
+          <label class="checkbox-label repeat-toggle">
+            <input id="repeat-task" type="checkbox" />
+            Repeat this item
+          </label>
+
+          <div class="repeat-controls hidden" id="repeat-controls">
+            <div class="repeat-row">
+              <div class="field repeat-field">
+                <label for="repeat-interval">Every</label>
+                <div class="repeat-repeat-row">
+                  <input id="repeat-interval" type="number" min="1" value="1" />
+                  <select id="repeat-unit">
+                    <option value="day">Day(s)</option>
+                    <option value="week">Week(s)</option>
+                    <option value="month">Month(s)</option>
+                    <option value="year">Year(s)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="field repeat-field" id="repeat-time-row">
+                <label for="repeat-time">Repeat time <span>(optional)</span></label>
+                <input id="repeat-time" type="time" />
+              </div>
+            </div>
+
+            <div class="repeat-row">
+              <div class="field repeat-weekday hidden" id="repeat-weekday-field">
+                <label>Repeat on</label>
+                <div class="weekday-grid weekday-pill-grid">
+                  <button type="button" class="weekday-pill selected" data-day="0">Sun</button>
+                  <button type="button" class="weekday-pill selected" data-day="1">Mon</button>
+                  <button type="button" class="weekday-pill selected" data-day="2">Tue</button>
+                  <button type="button" class="weekday-pill selected" data-day="3">Wed</button>
+                  <button type="button" class="weekday-pill selected" data-day="4">Thu</button>
+                  <button type="button" class="weekday-pill selected" data-day="5">Fri</button>
+                  <button type="button" class="weekday-pill selected" data-day="6">Sat</button>
+                </div>
+              </div>
+
+              <div class="field repeat-monthday hidden" id="repeat-monthday-field">
+                <label for="repeat-monthdays">Days of month</label>
+                <input id="repeat-monthdays" type="text" placeholder="e.g. 1, 15, 28" />
+              </div>
+
+              <div class="field">
+                <label for="repeat-end">Stop repeating</label>
+                <input id="repeat-end" type="date" />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-row form-row-inline submit-row">
+        <button type="submit" class="primary-button">Add item</button>
+      </div>
+    </form>
+
+    <section class="bottom-actions">
+      <button type="button" id="export-json" class="secondary-button">Export JSON</button>
+      <button type="button" id="import-json" class="secondary-button">Import JSON</button>
     </section>
   </main>
 
-  <script src="script.js"></script>
+  <script src="script.mjs" type="module"></script>
 </body>
 </html>
