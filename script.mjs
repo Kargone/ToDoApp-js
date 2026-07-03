@@ -35,7 +35,7 @@ let searchQuery = '';
 
 const STORAGE_KEY = 'todoapp-js-tasks';
 let activeTab = 'today';
-let tasks = undefined;
+let tasks = [];
 
 // Import the functions you need from the SDKs you need
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-app.js";
@@ -479,6 +479,7 @@ function getItemsForTab() {
       items = tasks.filter((item) => {
         if (item.completed) return false;
         if (unFormatTime(item.dueTime, item.dueDate) > unFormatTime("23:59", getTodayIso())) return false;
+        if (unFormatTime(item.startTime, item.startDate) > unFormatTime("23:59", getTodayIso())) return false;
         if (item.section === 'later') return false;
         if (typeof item.repeatRule?.repeatTime === 'string' && item.repeatRule?.repeatTime !== "" && unFormatTime(item.repeatRule.repeatTime, item.dueDate) < Date.now()) return false;
         return true;
