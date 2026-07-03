@@ -1,7 +1,7 @@
 [
   {
     "completed": false,
-    "dueDate": "2026-07-03",
+    "dueDate": "2026-07-04",
     "dueTime": "12:00",
     "id": "1783044546776-bc2081493562e8",
     "noDue": false,
@@ -23,6 +23,18 @@
     "section": "today",
     "text": "Pat's plants: Morning",
     "type": "task"
+  },
+  {
+    "id": "1783107109309-521c4ecde256c",
+    "type": "task",
+    "text": "Pat's plants: Morning",
+    "completed": true,
+    "repeatRule": null,
+    "isVirtual": false,
+    "dueDate": "2026-07-03",
+    "dueTime": "12:00",
+    "noDue": false,
+    "section": "today"
   },
   {
     "completed": false,
@@ -50,126 +62,92 @@
     "type": "task"
   },
   {
+    "completed": false,
+    "dueDate": "2026-07-02",
+    "dueTime": "",
     "id": "1783044913738-30f2669906972",
-    "type": "task",
+    "noDue": true,
+    "section": "later",
     "text": "Milk and Strawberries",
-    "completed": false,
-    "repeatRule": null,
-    "noDue": true,
-    "section": "later",
-    "dueDate": "2026-07-02",
-    "dueTime": ""
+    "type": "task"
   },
   {
+    "completed": false,
+    "dueDate": "2026-07-02",
+    "dueTime": "",
     "id": "1783044938898-a3b318e5ade868",
-    "type": "task",
+    "noDue": true,
+    "section": "later",
     "text": "Yt premium Move Over",
-    "completed": false,
-    "repeatRule": null,
-    "noDue": true,
-    "section": "later",
-    "dueDate": "2026-07-02",
-    "dueTime": ""
+    "type": "task"
   },
   {
+    "completed": false,
+    "dueDate": "2026-07-02",
+    "dueTime": "",
     "id": "1783044947909-66f538a05675a8",
-    "type": "task",
-    "text": "Fix Garden",
-    "completed": false,
-    "repeatRule": null,
     "noDue": true,
     "section": "later",
-    "dueDate": "2026-07-02",
-    "dueTime": ""
+    "text": "Fix Garden",
+    "type": "task"
   },
   {
+    "completed": false,
+    "dueDate": "2026-07-03",
+    "dueTime": "",
     "id": "1783044975357-d5145bd81c0cb",
-    "type": "task",
+    "noDue": false,
+    "repeatRule": {
+      "daysOfWeek": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "interval": 1,
+      "repeatTime": "",
+      "stopDate": "",
+      "unit": "day"
+    },
+    "section": "today",
     "text": "Morning Cream",
-    "completed": false,
-    "repeatRule": {
-      "interval": 1,
-      "unit": "day",
-      "stopDate": "",
-      "repeatTime": "",
-      "daysOfWeek": [
-        0,
-        1,
-        2,
-        3,
-        4,
-        5,
-        6
-      ],
-      "daysOfMonth": []
-    },
-    "noDue": false,
-    "section": "today",
-    "dueDate": "2026-07-03",
-    "dueTime": ""
+    "type": "task"
   },
   {
+    "completed": false,
+    "dueDate": "2026-07-03",
+    "dueTime": "17:00",
     "id": "1783045004084-7d679d9d6eb8d8",
-    "type": "task",
-    "text": "Evening Cream",
-    "completed": false,
+    "noDue": false,
     "repeatRule": {
+      "daysOfWeek": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
       "interval": 1,
-      "unit": "day",
-      "stopDate": "",
       "repeatTime": "17:00",
-      "daysOfWeek": [
-        0,
-        1,
-        2,
-        3,
-        4,
-        5,
-        6
-      ],
-      "daysOfMonth": []
+      "stopDate": "",
+      "unit": "day"
     },
-    "noDue": false,
     "section": "today",
-    "dueDate": "2026-07-03",
-    "dueTime": "17:00"
+    "text": "Evening Cream",
+    "type": "task"
   },
   {
-    "id": "1783045023462-d962d9a262982",
-    "type": "task",
-    "text": "Leet Code",
     "completed": false,
-    "repeatRule": {
-      "interval": 1,
-      "unit": "day",
-      "stopDate": "",
-      "repeatTime": "",
-      "daysOfWeek": [
-        0,
-        1,
-        2,
-        3,
-        4,
-        5,
-        6
-      ],
-      "daysOfMonth": []
-    },
-    "noDue": false,
-    "section": "today",
     "dueDate": "2026-07-02",
-    "dueTime": ""
-  },
-  {
-    "id": "1783045042968-c2727abb2da6c8",
-    "type": "task",
-    "text": "Dirty Dishes",
-    "completed": false,
+    "dueTime": "",
+    "id": "1783045023462-d962d9a262982",
+    "noDue": false,
     "repeatRule": {
-      "interval": 1,
-      "unit": "day",
-      "stopDate": "",
-      "repeatTime": "",
       "daysOfWeek": [
         0,
         1,
@@ -179,21 +157,82 @@
         5,
         6
       ],
-      "daysOfMonth": []
+      "interval": 1,
+      "repeatTime": "",
+      "stopDate": "",
+      "unit": "day"
     },
-    "noDue": false,
     "section": "today",
-    "dueDate": "2026-07-03",
-    "dueTime": ""
+    "text": "Leet Code",
+    "type": "task"
   },
   {
-    "id": "1783045130580-655e326e7b3e1",
-    "type": "event",
-    "text": "Ortho Appointment",
     "completed": false,
-    "repeatRule": null,
+    "dueDate": "2026-07-03",
+    "dueTime": "",
+    "id": "1783045042968-c2727abb2da6c8",
+    "noDue": false,
+    "repeatRule": {
+      "daysOfWeek": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "interval": 1,
+      "repeatTime": "",
+      "stopDate": "",
+      "unit": "day"
+    },
+    "section": "today",
+    "text": "Dirty Dishes",
+    "type": "task"
+  },
+  {
+    "completed": false,
+    "endTime": "11:30",
+    "id": "1783045130580-655e326e7b3e1",
     "startDate": "2026-07-07",
     "startTime": "10:30",
-    "endTime": "11:30"
+    "text": "Ortho Appointment",
+    "type": "event"
+  },
+  {
+    "completed": false,
+    "dueDate": "2026-07-02",
+    "dueTime": "",
+    "id": "1783046265954-65f586daf64bd8",
+    "noDue": false,
+    "repeatRule": {
+      "daysOfWeek": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "interval": 1,
+      "repeatTime": "",
+      "stopDate": "2026-07-15",
+      "unit": "day"
+    },
+    "section": "today",
+    "text": "Write talk for 30 Minutes",
+    "type": "task"
+  },
+  {
+    "completed": false,
+    "dueDate": "2026-07-03",
+    "dueTime": "",
+    "id": "1783105865817-07ab83103cbf48",
+    "noDue": false,
+    "section": "today",
+    "text": "Budget for June",
+    "type": "task"
   }
 ]

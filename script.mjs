@@ -71,7 +71,7 @@ function normalizeDate(value) {
 function addInterval(dateIso, interval, unit) {
   const date = new Date(`${dateIso}T00:00:00`);
   switch (unit) {
-    case 'week':
+    case 'week':startDate
       date.setDate(date.getDate() + interval * 7);
       break;
     case 'month':
@@ -182,6 +182,7 @@ async function syncTasksToFirebase() {
   try {
     await set(ref(firebaseDb, `users/${currentUser.uid}/tasks`), tasks);
   } catch (error) {
+    console.log('tasks', tasks);
     console.warn('Firebase save failed', error);
   }
 }
@@ -474,12 +475,12 @@ function getItemsForTab() {
       const virtuals = tasks.flatMap((item) => getRepeatOccurrences(item, tomorrow, rangeEnd));
       items = [...baseItems, ...virtuals];
     } else if (activeTab === 'later') {
-      items = tasks.filter((item) => item.noDue && item.section === 'later');
+      items = tasks.filter((item) => item.noDue && item.section === 'later' && !item.completed);
     } else if (activeTab === 'today') {
       items = tasks.filter((item) => {
         if (item.completed) return false;
-        if (unFormatTime(item.dueTime, item.dueDate) > unFormatTime("23:59", getTodayIso())) return false;
-        if (unFormatTime(item.startTime, item.startDate) > unFormatTime("23:59", getTodayIso())) return false;
+        if (unFormatTime(item.dueTime || '', item.dueDate || '') > unFormatTime("23:59", getTodayIso())) return false;
+        if (unFormatTime(item.startTime || '', item.startDate || '') > unFormatTime("23:59", getTodayIso())) return false;
         if (item.section === 'later') return false;
         if (typeof item.repeatRule?.repeatTime === 'string' && item.repeatRule?.repeatTime !== "" && unFormatTime(item.repeatRule.repeatTime, item.dueDate) < Date.now()) return false;
         return true;
@@ -739,14 +740,21 @@ function toggleTask(taskId) {
 
       const nextOccurrence = getNextRepeatOccurrence(task);
       if (nextOccurrence) {
-        const updatedTask = {
-          ...task,
-          dueDate: nextOccurrence.dueDate || task.dueDate,
-          startDate: nextOccurrence.startDate || task.startDate,
-          dueTime: nextOccurrence.dueTime ?? task.dueTime,
-          startTime: nextOccurrence.startTime ?? task.startTime,
-          endTime: nextOccurrence.endTime ?? task.endTime,
-        };
+        let updatedTask;
+        if (task.type === 'event') {
+          updatedTask = {
+            ...task,
+            startDate: nextOccurrence.startDate || task.startDate,
+            startTime: nextOccurrence.startTime ?? task.startTime,
+            endTime: nextOccurrence.endTime ?? task.endTime,
+          };
+        } else {
+          updatedTask = {
+            ...task,
+            dueDate: nextOccurrence.dueDate || task.dueDate,
+            dueTime: nextOccurrence.dueTime ?? task.dueTime,
+          };
+        }
         newTasks.push(updatedTask);
         newTasks.push(completedOccurrence);
       } else {
