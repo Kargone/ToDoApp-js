@@ -1,0 +1,2 @@
+rename the repeatTime property
+see long term events for a month in advance

@@ -35,7 +35,7 @@ let searchQuery = '';
 
 const STORAGE_KEY = 'todoapp-js-tasks';
 let activeTab = 'today';
-let tasks = loadTasks();
+let tasks = undefined;
 
 // Import the functions you need from the SDKs you need
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-app.js";
@@ -128,6 +128,12 @@ function formatTime(timeValue) {
   });
 }
 
+function unFormatTime(formattedTime, formattedDate) {
+  if (!formattedDate) return 0;
+  if (formattedTime === "") formattedTime = "00:00";
+  return Date.parse(`${formattedDate}T${formattedTime}:00Z`);
+}
+
 function formatDueLabel(item) {
   if (item.type === 'event') {
     const options = { weekday: 'short', month: 'short', day: 'numeric' };
@@ -168,23 +174,7 @@ function createTaskId() {
 }
 
 function saveTasks() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
   syncTasksToFirebase();
-}
-
-function loadTasks() {
-  const stored = localStorage.getItem(STORAGE_KEY);
-  if (!stored) return [];
-  try {
-    const parsed = JSON.parse(stored);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch (error) {
-    return [];
-  }
-}
-
-function saveLocalTasks() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
 }
 
 async function syncTasksToFirebase() {
@@ -207,7 +197,6 @@ async function loadRemoteTasks() {
       if (Array.isArray(data)) {
         tasks = data;
         console.log('Loaded tasks from Firebase:', tasks);
-        saveLocalTasks();
         renderTasks();
       }
     } else {
@@ -471,6 +460,8 @@ function getRepeatOccurrences(task, startIso, endIso) {
 function getItemsForTab() {
   let items;
 
+  console.log('Active tab:', activeTab, 'Search query:', searchQuery);
+
   if (activeTab === 'repeating') {
     items = tasks.filter((item) => item.repeatRule && !item.isVirtual);
   } else {
@@ -482,6 +473,16 @@ function getItemsForTab() {
       const rangeEnd = activeTab === 'tomorrow' ? tomorrow : addInterval(today, 3, 'day');
       const virtuals = tasks.flatMap((item) => getRepeatOccurrences(item, tomorrow, rangeEnd));
       items = [...baseItems, ...virtuals];
+    } else if (activeTab === 'later') {
+      items = tasks.filter((item) => item.noDue && item.section === 'later');
+    } else if (activeTab === 'today') {
+      items = tasks.filter((item) => {
+        if (item.completed) return false;
+        if (unFormatTime(item.dueTime, item.dueDate) > unFormatTime("23:59", getTodayIso())) return false;
+        if (item.section === 'later') return false;
+        if (typeof item.repeatRule?.repeatTime === 'string' && item.repeatRule?.repeatTime !== "" && unFormatTime(item.repeatRule.repeatTime, item.dueDate) < Date.now()) return false;
+        return true;
+      });
     } else {
       items = baseItems;
     }
