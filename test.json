@@ -1,7 +1,7 @@
 [
   {
     "completed": false,
-    "dueDate": "2026-07-04",
+    "dueDate": "2026-07-05",
     "dueTime": "12:00",
     "id": "1783044546776-bc2081493562e8",
     "noDue": false,
@@ -25,16 +25,26 @@
     "type": "task"
   },
   {
-    "id": "1783107109309-521c4ecde256c",
-    "type": "task",
-    "text": "Pat's plants: Morning",
     "completed": true,
-    "repeatRule": null,
+    "dueDate": "2026-07-04",
+    "dueTime": "12:00",
+    "id": "1783187112152-3779bbc25485e8",
     "isVirtual": false,
+    "noDue": false,
+    "section": "today",
+    "text": "Pat's plants: Morning",
+    "type": "task"
+  },
+  {
+    "completed": true,
     "dueDate": "2026-07-03",
     "dueTime": "12:00",
+    "id": "1783114222149-9d5a40f9c7643",
+    "isVirtual": false,
     "noDue": false,
-    "section": "today"
+    "section": "today",
+    "text": "Pat's plants: Morning",
+    "type": "task"
   },
   {
     "completed": false,
@@ -62,7 +72,7 @@
     "type": "task"
   },
   {
-    "completed": false,
+    "completed": true,
     "dueDate": "2026-07-02",
     "dueTime": "",
     "id": "1783044913738-30f2669906972",
@@ -93,7 +103,7 @@
   },
   {
     "completed": false,
-    "dueDate": "2026-07-03",
+    "dueDate": "2026-07-04",
     "dueTime": "",
     "id": "1783044975357-d5145bd81c0cb",
     "noDue": false,
@@ -112,6 +122,17 @@
       "stopDate": "",
       "unit": "day"
     },
+    "section": "today",
+    "text": "Morning Cream",
+    "type": "task"
+  },
+  {
+    "completed": true,
+    "dueDate": "2026-07-03",
+    "dueTime": "",
+    "id": "1783114268531-63276f04e15518",
+    "isVirtual": false,
+    "noDue": false,
     "section": "today",
     "text": "Morning Cream",
     "type": "task"
@@ -143,7 +164,7 @@
   },
   {
     "completed": false,
-    "dueDate": "2026-07-02",
+    "dueDate": "2026-07-04",
     "dueTime": "",
     "id": "1783045023462-d962d9a262982",
     "noDue": false,
@@ -167,8 +188,30 @@
     "type": "task"
   },
   {
-    "completed": false,
+    "completed": true,
     "dueDate": "2026-07-03",
+    "dueTime": "",
+    "id": "1783187129654-73f44daa6737",
+    "isVirtual": false,
+    "noDue": false,
+    "section": "today",
+    "text": "Leet Code",
+    "type": "task"
+  },
+  {
+    "completed": true,
+    "dueDate": "2026-07-02",
+    "dueTime": "",
+    "id": "1783114278852-584975c888f66",
+    "isVirtual": false,
+    "noDue": false,
+    "section": "today",
+    "text": "Leet Code",
+    "type": "task"
+  },
+  {
+    "completed": false,
+    "dueDate": "2026-07-05",
     "dueTime": "",
     "id": "1783045042968-c2727abb2da6c8",
     "noDue": false,
@@ -192,6 +235,28 @@
     "type": "task"
   },
   {
+    "completed": true,
+    "dueDate": "2026-07-04",
+    "dueTime": "",
+    "id": "1783187124880-2d558180c81c8",
+    "isVirtual": false,
+    "noDue": false,
+    "section": "today",
+    "text": "Dirty Dishes",
+    "type": "task"
+  },
+  {
+    "completed": true,
+    "dueDate": "2026-07-03",
+    "dueTime": "",
+    "id": "1783114277155-4e2903930d15c",
+    "isVirtual": false,
+    "noDue": false,
+    "section": "today",
+    "text": "Dirty Dishes",
+    "type": "task"
+  },
+  {
     "completed": false,
     "endTime": "11:30",
     "id": "1783045130580-655e326e7b3e1",
@@ -202,7 +267,7 @@
   },
   {
     "completed": false,
-    "dueDate": "2026-07-02",
+    "dueDate": "2026-07-04",
     "dueTime": "",
     "id": "1783046265954-65f586daf64bd8",
     "noDue": false,
@@ -226,13 +291,73 @@
     "type": "task"
   },
   {
-    "completed": false,
+    "completed": true,
+    "dueDate": "2026-07-03",
+    "dueTime": "",
+    "id": "1783114274909-5d59c169bc3cd8",
+    "isVirtual": false,
+    "noDue": false,
+    "section": "today",
+    "text": "Write talk for 30 Minutes",
+    "type": "task"
+  },
+  {
+    "completed": true,
+    "dueDate": "2026-07-02",
+    "dueTime": "",
+    "id": "1783114272585-23f8f7018b9e38",
+    "isVirtual": false,
+    "noDue": false,
+    "section": "today",
+    "text": "Write talk for 30 Minutes",
+    "type": "task"
+  },
+  {
+    "completed": true,
     "dueDate": "2026-07-03",
     "dueTime": "",
     "id": "1783105865817-07ab83103cbf48",
     "noDue": false,
     "section": "today",
     "text": "Budget for June",
+    "type": "task"
+  },
+  {
+    "completed": false,
+    "dueDate": "2026-08-01",
+    "dueTime": "",
+    "id": "1783115225568-3f30be0a0ab888",
+    "noDue": false,
+    "repeatRule": {
+      "daysOfMonth": [
+        1
+      ],
+      "daysOfWeek": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "interval": 1,
+      "repeatTime": "",
+      "stopDate": "",
+      "unit": "month"
+    },
+    "section": "today",
+    "text": "Budget for last month",
+    "type": "task"
+  },
+  {
+    "completed": false,
+    "dueDate": "2026-07-04",
+    "dueTime": "",
+    "id": "1783187138287-cb435d0bbe1dc",
+    "noDue": false,
+    "section": "today",
+    "text": "Store",
     "type": "task"
   }
 ]

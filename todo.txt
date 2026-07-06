@@ -1,2 +1,5 @@
-rename the repeatTime property
-see long term events for a month in advance
+*rename the repeatTime property
+*see long term events for a month in advance
+*white border at the bottom of web page on mobile by moving bar
+*repeat now time tasks won't show in the morning if the day is past. It won't show at all
+*default add task button to hidden 

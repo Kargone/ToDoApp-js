@@ -13,7 +13,7 @@ const repeatTaskCheckbox = document.getElementById('repeat-task');
 const repeatIntervalInput = document.getElementById('repeat-interval');
 const repeatUnitSelect = document.getElementById('repeat-unit');
 const repeatEndInput = document.getElementById('repeat-end');
-const repeatTimeInput = document.getElementById('repeat-time');
+const revealTimeInput = document.getElementById('repeat-time');
 const repeatControls = document.getElementById('repeat-controls');
 const repeatWeekdayField = document.getElementById('repeat-weekday-field');
 const repeatMonthdayField = document.getElementById('repeat-monthday-field');
@@ -29,7 +29,7 @@ const importJsonButton = document.getElementById('import-json');
 const tabButtons = document.querySelectorAll('.tab');
 const taskFields = document.querySelectorAll('.item-task');
 const eventFields = document.querySelectorAll('.item-event');
-const repeatTimeRow = document.getElementById('repeat-time-row');
+const revealTimeRow = document.getElementById('repeat-time-row');
 const submitRow = document.querySelector('.submit-row');
 let searchQuery = '';
 
@@ -156,8 +156,8 @@ function formatDueLabel(item) {
 
 function formatRepeatLabel(rule) {
   const labels = [`Repeats every ${rule.interval} ${rule.unit}`];
-  if (rule.repeatTime) {
-    labels.push(`at ${formatTime(rule.repeatTime)}`);
+  if (rule.revealTime) {
+    labels.push(`at ${formatTime(rule.revealTime)}`);
   }
   if (rule.unit === 'week' && rule.daysOfWeek?.length) {
     const names = rule.daysOfWeek.map((day) => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][day]);
@@ -336,8 +336,8 @@ function createRepeatEditor(task) {
   const timeField = document.createElement('div');
   timeField.className = 'field';
   timeField.innerHTML = `
-    <label>Repeat time <span>(optional)</span></label>
-    <input type="time" class="edit-repeat-time" value="${task.repeatRule.repeatTime || ''}" />
+    <label>Reveal time <span>(optional)</span></label>
+    <input type="time" class="edit-repeat-time" value="${task.repeatRule.revealTime || ''}" />
   `;
 
   const weekdayField = document.createElement('div');
@@ -373,7 +373,7 @@ function createRepeatEditor(task) {
     const intervalValue = Number(intervalField.querySelector('.edit-repeat-interval').value) || 1;
     const unitValue = editUnitSelect.value;
     const stopValue = stopField.querySelector('.edit-repeat-stop').value;
-    const repeatTimeValue = timeField.querySelector('.edit-repeat-time').value;
+    const revealTimeValue = timeField.querySelector('.edit-repeat-time').value;
       const weekDays = Array.from(weekdayField.querySelectorAll('.weekday-pill.selected')).map((button) => Number(button.dataset.day));
     saveTasks();
     renderTasks();
@@ -431,7 +431,7 @@ function createRepeatOccurrence(task, dateIso) {
     ...task,
     id: `${task.id}-occ-${dateIso}`,
     dueDate: dateIso,
-    dueTime: task.dueTime || task.repeatRule?.repeatTime || '',
+    dueTime: task.dueTime || task.repeatRule?.revealTime || '',
     isVirtual: true,
   };
 }
@@ -461,7 +461,7 @@ function getRepeatOccurrences(task, startIso, endIso) {
 function getItemsForTab() {
   let items;
 
-  console.log('Active tab:', activeTab, 'Search query:', searchQuery);
+  // console.log('Active tab:', activeTab, 'Search query:', searchQuery);
 
   if (activeTab === 'repeating') {
     items = tasks.filter((item) => item.repeatRule && !item.isVirtual);
@@ -474,6 +474,16 @@ function getItemsForTab() {
       const rangeEnd = activeTab === 'tomorrow' ? tomorrow : addInterval(today, 3, 'day');
       const virtuals = tasks.flatMap((item) => getRepeatOccurrences(item, tomorrow, rangeEnd));
       items = [...baseItems, ...virtuals];
+    } else if (activeTab === 'nextMonth') {
+      const today = getTodayIso();
+      const rangeEnd = addInterval(today, 1, 'month');
+      const eventItems = tasks.filter((item) => {
+        if (item.completed || item.isVirtual || item.type !== 'event') return false;
+        const dateIso = item.startDate;
+        return Boolean(dateIso && dateIso >= today && dateIso <= rangeEnd);
+      });
+      const virtuals = tasks.flatMap((item) => getRepeatOccurrences(item, today, rangeEnd)).filter((item) => item.type === 'event');
+      items = [...eventItems, ...virtuals];
     } else if (activeTab === 'later') {
       items = tasks.filter((item) => item.noDue && item.section === 'later' && !item.completed);
     } else if (activeTab === 'today') {
@@ -482,7 +492,8 @@ function getItemsForTab() {
         if (unFormatTime(item.dueTime || '', item.dueDate || '') > unFormatTime("23:59", getTodayIso())) return false;
         if (unFormatTime(item.startTime || '', item.startDate || '') > unFormatTime("23:59", getTodayIso())) return false;
         if (item.section === 'later') return false;
-        if (typeof item.repeatRule?.repeatTime === 'string' && item.repeatRule?.repeatTime !== "" && unFormatTime(item.repeatRule.repeatTime, item.dueDate) < Date.now()) return false;
+        const localTimestamp = Date.now() - (new Date().getTimezoneOffset() * 60000);
+        if (typeof item.repeatRule?.revealTime === 'string' && item.repeatRule?.revealTime !== "" && unFormatTime(item.repeatRule.revealTime, item.dueDate) > localTimestamp) return false;
         return true;
       });
     } else {
@@ -636,7 +647,7 @@ function addTask(text) {
         interval: Math.max(1, Number(repeatIntervalInput.value) || 1),
         unit: repeatUnitSelect.value,
         stopDate: repeatEndInput.value || '',
-        repeatTime: itemType === 'task' ? repeatTimeInput.value || '' : '',
+        revealTime: itemType === 'task' ? revealTimeInput.value || '' : '',
         daysOfWeek: Array.from(repeatWeekdayField.querySelectorAll('.weekday-pill.selected')).map((button) => Number(button.dataset.day)),
         daysOfMonth: parseMonthDays(repeatMonthdaysInput.value),
       }
@@ -665,8 +676,8 @@ function addTask(text) {
     item.dueDate = noDue ? getTodayIso() : normalizeDate(dueDateInput.value || getTodayIso());
     item.dueTime = noDue ? '' : dueTimeInput.value;
 
-    if (repeat && !item.dueTime && repeatTimeInput.value) {
-      item.dueTime = repeatTimeInput.value;
+    if (repeat && !item.dueTime && revealTimeInput.value) {
+      item.dueTime = revealTimeInput.value;
     }
   }
 
@@ -803,7 +814,7 @@ function getNextRepeatOccurrence(task) {
         type: 'task',
         text: task.text,
         dueDate: iso,
-        dueTime: task.repeatRule.repeatTime || task.dueTime || '',
+        dueTime: task.repeatRule.revealTime || task.dueTime || '',
         noDue: false,
         section: 'today',
         completed: false,
@@ -871,7 +882,7 @@ function updateFormMode() {
     element.classList.toggle('hidden', !isEvent);
   });
   taskSectionRow.classList.toggle('hidden', isEvent);
-  repeatTimeRow.classList.toggle('hidden', isEvent);
+  revealTimeRow.classList.toggle('hidden', isEvent);
 }
 
 tabButtons.forEach((button) => {
@@ -960,7 +971,7 @@ todoForm.addEventListener('submit', (event) => {
   repeatIntervalInput.value = 1;
   repeatUnitSelect.value = 'day';
   repeatEndInput.value = '';
-  repeatTimeInput.value = '';
+  revealTimeInput.value = '';
   repeatMonthdaysInput.value = '';
   taskSectionSelect.value = 'today';
   noDueCheckbox.checked = false;
