@@ -1,7 +1,7 @@
 [
   {
     "completed": false,
-    "dueDate": "2026-07-05",
+    "dueDate": "2026-07-07",
     "dueTime": "12:00",
     "id": "1783044546776-bc2081493562e8",
     "noDue": false,
@@ -20,6 +20,28 @@
       "stopDate": "2026-07-07",
       "unit": "day"
     },
+    "section": "today",
+    "text": "Pat's plants: Morning",
+    "type": "task"
+  },
+  {
+    "completed": true,
+    "dueDate": "2026-07-06",
+    "dueTime": "12:00",
+    "id": "1783351007117-88330ac054ce28",
+    "isVirtual": false,
+    "noDue": false,
+    "section": "today",
+    "text": "Pat's plants: Morning",
+    "type": "task"
+  },
+  {
+    "completed": true,
+    "dueDate": "2026-07-05",
+    "dueTime": "12:00",
+    "id": "1783276862397-32272bd01ed4f",
+    "isVirtual": false,
+    "noDue": false,
     "section": "today",
     "text": "Pat's plants: Morning",
     "type": "task"
@@ -48,7 +70,7 @@
   },
   {
     "completed": false,
-    "dueDate": "2026-07-03",
+    "dueDate": "2026-07-07",
     "dueTime": "20:00",
     "id": "1783044589911-17514f9f6ff2a",
     "noDue": false,
@@ -67,6 +89,50 @@
       "stopDate": "2026-07-07",
       "unit": "day"
     },
+    "section": "today",
+    "text": "Pat's plants: Evening",
+    "type": "task"
+  },
+  {
+    "completed": true,
+    "dueDate": "2026-07-06",
+    "dueTime": "20:00",
+    "id": "1783363049455-78bf55958cddc8",
+    "isVirtual": false,
+    "noDue": false,
+    "section": "today",
+    "text": "Pat's plants: Evening",
+    "type": "task"
+  },
+  {
+    "completed": true,
+    "dueDate": "2026-07-05",
+    "dueTime": "20:00",
+    "id": "1783363046267-e71d3097156b18",
+    "isVirtual": false,
+    "noDue": false,
+    "section": "today",
+    "text": "Pat's plants: Evening",
+    "type": "task"
+  },
+  {
+    "completed": true,
+    "dueDate": "2026-07-04",
+    "dueTime": "20:00",
+    "id": "1783363045552-4bcfb001aeff78",
+    "isVirtual": false,
+    "noDue": false,
+    "section": "today",
+    "text": "Pat's plants: Evening",
+    "type": "task"
+  },
+  {
+    "completed": true,
+    "dueDate": "2026-07-03",
+    "dueTime": "20:00",
+    "id": "1783363044958-e7747d1f462628",
+    "isVirtual": false,
+    "noDue": false,
     "section": "today",
     "text": "Pat's plants: Evening",
     "type": "task"
@@ -103,7 +169,7 @@
   },
   {
     "completed": false,
-    "dueDate": "2026-07-04",
+    "dueDate": "2026-07-07",
     "dueTime": "",
     "id": "1783044975357-d5145bd81c0cb",
     "noDue": false,
@@ -128,6 +194,39 @@
   },
   {
     "completed": true,
+    "dueDate": "2026-07-06",
+    "dueTime": "",
+    "id": "1783352699571-d3aa5e45a0d6",
+    "isVirtual": false,
+    "noDue": false,
+    "section": "today",
+    "text": "Morning Cream",
+    "type": "task"
+  },
+  {
+    "completed": true,
+    "dueDate": "2026-07-05",
+    "dueTime": "",
+    "id": "1783283919439-1679fe2946e79",
+    "isVirtual": false,
+    "noDue": false,
+    "section": "today",
+    "text": "Morning Cream",
+    "type": "task"
+  },
+  {
+    "completed": true,
+    "dueDate": "2026-07-04",
+    "dueTime": "",
+    "id": "1783196432558-63c391e216fcc8",
+    "isVirtual": false,
+    "noDue": false,
+    "section": "today",
+    "text": "Morning Cream",
+    "type": "task"
+  },
+  {
+    "completed": true,
     "dueDate": "2026-07-03",
     "dueTime": "",
     "id": "1783114268531-63276f04e15518",
@@ -138,33 +237,52 @@
     "type": "task"
   },
   {
-    "completed": false,
+    "completed": true,
+    "dueDate": "2026-07-06",
+    "dueTime": "17:00",
+    "id": "1783363115300-fbfe9a7179a35",
+    "isVirtual": false,
+    "noDue": false,
+    "section": "today",
+    "text": "Evening Cream",
+    "type": "task"
+  },
+  {
+    "completed": true,
+    "dueDate": "2026-07-05",
+    "dueTime": "17:00",
+    "id": "1783363053542-844d5582c4c038",
+    "isVirtual": false,
+    "noDue": false,
+    "section": "today",
+    "text": "Evening Cream",
+    "type": "task"
+  },
+  {
+    "completed": true,
+    "dueDate": "2026-07-04",
+    "dueTime": "17:00",
+    "id": "1783363051755-5bba56bdc782d",
+    "isVirtual": false,
+    "noDue": false,
+    "section": "today",
+    "text": "Evening Cream",
+    "type": "task"
+  },
+  {
+    "completed": true,
     "dueDate": "2026-07-03",
     "dueTime": "17:00",
-    "id": "1783045004084-7d679d9d6eb8d8",
+    "id": "1783363051394-421858a305f178",
+    "isVirtual": false,
     "noDue": false,
-    "repeatRule": {
-      "daysOfWeek": [
-        0,
-        1,
-        2,
-        3,
-        4,
-        5,
-        6
-      ],
-      "interval": 1,
-      "repeatTime": "17:00",
-      "stopDate": "",
-      "unit": "day"
-    },
     "section": "today",
     "text": "Evening Cream",
     "type": "task"
   },
   {
     "completed": false,
-    "dueDate": "2026-07-04",
+    "dueDate": "2026-07-06",
     "dueTime": "",
     "id": "1783045023462-d962d9a262982",
     "noDue": false,
@@ -183,6 +301,28 @@
       "stopDate": "",
       "unit": "day"
     },
+    "section": "today",
+    "text": "Leet Code",
+    "type": "task"
+  },
+  {
+    "completed": true,
+    "dueDate": "2026-07-05",
+    "dueTime": "",
+    "id": "1783276858622-7ae8e1c053bdf",
+    "isVirtual": false,
+    "noDue": false,
+    "section": "today",
+    "text": "Leet Code",
+    "type": "task"
+  },
+  {
+    "completed": true,
+    "dueDate": "2026-07-04",
+    "dueTime": "",
+    "id": "1783220301964-aeaa6a0d72e6d8",
+    "isVirtual": false,
+    "noDue": false,
     "section": "today",
     "text": "Leet Code",
     "type": "task"
@@ -211,7 +351,7 @@
   },
   {
     "completed": false,
-    "dueDate": "2026-07-05",
+    "dueDate": "2026-07-06",
     "dueTime": "",
     "id": "1783045042968-c2727abb2da6c8",
     "noDue": false,
@@ -230,6 +370,17 @@
       "stopDate": "",
       "unit": "day"
     },
+    "section": "today",
+    "text": "Dirty Dishes",
+    "type": "task"
+  },
+  {
+    "completed": true,
+    "dueDate": "2026-07-05",
+    "dueTime": "",
+    "id": "1783292622465-be2c393575c27",
+    "isVirtual": false,
+    "noDue": false,
     "section": "today",
     "text": "Dirty Dishes",
     "type": "task"
@@ -267,7 +418,7 @@
   },
   {
     "completed": false,
-    "dueDate": "2026-07-04",
+    "dueDate": "2026-07-07",
     "dueTime": "",
     "id": "1783046265954-65f586daf64bd8",
     "noDue": false,
@@ -286,6 +437,39 @@
       "stopDate": "2026-07-15",
       "unit": "day"
     },
+    "section": "today",
+    "text": "Write talk for 30 Minutes",
+    "type": "task"
+  },
+  {
+    "completed": true,
+    "dueDate": "2026-07-06",
+    "dueTime": "",
+    "id": "1783351012859-48b68dde09f688",
+    "isVirtual": false,
+    "noDue": false,
+    "section": "today",
+    "text": "Write talk for 30 Minutes",
+    "type": "task"
+  },
+  {
+    "completed": true,
+    "dueDate": "2026-07-05",
+    "dueTime": "",
+    "id": "1783276856699-8ad5f359f089c8",
+    "isVirtual": false,
+    "noDue": false,
+    "section": "today",
+    "text": "Write talk for 30 Minutes",
+    "type": "task"
+  },
+  {
+    "completed": true,
+    "dueDate": "2026-07-04",
+    "dueTime": "",
+    "id": "1783200663143-964d5d04b701a8",
+    "isVirtual": false,
+    "noDue": false,
     "section": "today",
     "text": "Write talk for 30 Minutes",
     "type": "task"
@@ -351,13 +535,122 @@
     "type": "task"
   },
   {
-    "completed": false,
+    "completed": true,
     "dueDate": "2026-07-04",
     "dueTime": "",
     "id": "1783187138287-cb435d0bbe1dc",
     "noDue": false,
     "section": "today",
     "text": "Store",
+    "type": "task"
+  },
+  {
+    "completed": false,
+    "dueDate": "2026-07-04",
+    "dueTime": "",
+    "id": "1783196998018-071df6c7b7d398",
+    "noDue": true,
+    "section": "later",
+    "text": "Weed big roots in garden",
+    "type": "task"
+  },
+  {
+    "completed": true,
+    "dueDate": "2026-07-04",
+    "dueTime": "",
+    "id": "1783198407176-2ae4be7478337",
+    "noDue": true,
+    "section": "today",
+    "text": "Mask tape door",
+    "type": "task"
+  },
+  {
+    "completed": true,
+    "dueDate": "2026-07-05",
+    "dueTime": "",
+    "id": "1783276869818-e7794429b2735",
+    "noDue": false,
+    "section": "today",
+    "text": "Ladder",
+    "type": "task"
+  },
+  {
+    "completed": true,
+    "dueDate": "2026-07-05",
+    "dueTime": "",
+    "id": "1783276875522-332859604a4948",
+    "noDue": false,
+    "section": "today",
+    "text": "Github",
+    "type": "task"
+  },
+  {
+    "completed": true,
+    "dueDate": "2026-07-05",
+    "dueTime": "",
+    "id": "1783276882882-6babcc1bafd5e",
+    "noDue": false,
+    "section": "today",
+    "text": "Charger",
+    "type": "task"
+  },
+  {
+    "completed": true,
+    "dueDate": "2026-07-05",
+    "dueTime": "",
+    "id": "1783283930235-b354fe4e2e4b",
+    "noDue": false,
+    "section": "today",
+    "text": "Microphone sold?",
+    "type": "task"
+  },
+  {
+    "completed": false,
+    "dueDate": "2026-07-05",
+    "dueTime": "",
+    "id": "1783303616721-f962556506b8e",
+    "noDue": true,
+    "section": "today",
+    "text": "Ups store & cost co",
+    "type": "task"
+  },
+  {
+    "completed": false,
+    "dueDate": "2026-07-22",
+    "dueTime": "",
+    "id": "1783304129350-38c6ae712cebb8",
+    "noDue": false,
+    "section": "today",
+    "text": "Garm tops",
+    "type": "task"
+  },
+  {
+    "completed": false,
+    "dueDate": "2026-07-06",
+    "dueTime": "",
+    "id": "1783314172317-7ed2ba78452a48",
+    "noDue": true,
+    "section": "today",
+    "text": "Ties, filter email, hole in soap thing",
+    "type": "task"
+  },
+  {
+    "completed": false,
+    "dueDate": "2026-07-06",
+    "dueTime": "17:00",
+    "id": "1783363230119-e2c91a8495572",
+    "noDue": false,
+    "repeatRule": {
+      "daysOfWeek": [
+        0
+      ],
+      "interval": 1,
+      "revealTime": "17:00",
+      "stopDate": "",
+      "unit": "day"
+    },
+    "section": "today",
+    "text": "Evening Cream",
     "type": "task"
   }
 ]

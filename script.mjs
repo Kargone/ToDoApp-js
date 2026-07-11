@@ -374,7 +374,16 @@ function createRepeatEditor(task) {
     const unitValue = editUnitSelect.value;
     const stopValue = stopField.querySelector('.edit-repeat-stop').value;
     const revealTimeValue = timeField.querySelector('.edit-repeat-time').value;
-      const weekDays = Array.from(weekdayField.querySelectorAll('.weekday-pill.selected')).map((button) => Number(button.dataset.day));
+    const weekDays = Array.from(weekdayField.querySelectorAll('.weekday-pill.selected')).map((button) => Number(button.dataset.day));
+    task.repeatRule = {
+      interval: intervalValue,
+      unit: unitValue,
+      stopDate: stopValue || '',
+      revealTime: revealTimeValue || '',
+      daysOfWeek: weekDays,
+      daysOfMonth: parseMonthDays(monthdayField.querySelector('.edit-repeat-monthdays').value)
+    };
+
     saveTasks();
     renderTasks();
     editor.open = false;
@@ -431,7 +440,7 @@ function createRepeatOccurrence(task, dateIso) {
     ...task,
     id: `${task.id}-occ-${dateIso}`,
     dueDate: dateIso,
-    dueTime: task.dueTime || task.repeatRule?.revealTime || '',
+    dueTime: task.dueTime || '',
     isVirtual: true,
   };
 }
@@ -512,7 +521,10 @@ function getItemsForTab() {
 function renderTasks() {
   todoList.innerHTML = '';
   
-  const visibleTasks = getItemsForTab();
+  // sort by due date and time
+  const visibleTasks = getItemsForTab().sort((a, b) => {
+    return unFormatTime(a.dueTime || a.startTime, a.dueDate || a.startDate || getTodayIso()) - unFormatTime(b.dueTime || b.startTime, b.dueDate || b.startDate || getTodayIso());
+  });
 
   if (visibleTasks.length === 0) {
     emptyState.style.display = 'block';
@@ -522,6 +534,8 @@ function renderTasks() {
   emptyState.style.display = 'none';
 
   visibleTasks.forEach((task) => {
+    if (activeTab === 'repeating' && task.repeatRule && !task.repeatRule.interval) return;
+
     const listItem = document.createElement('li');
     listItem.className = `todo-item${task.completed ? ' completed' : ''}${task.isVirtual ? ' virtual' : ''}${isItemUrgent(task) ? ' urgent' : ''}`;
 
@@ -581,7 +595,7 @@ function renderTasks() {
       meta.appendChild(sectionField);
     }
 
-    if (activeTab === 'repeating' && task.repeatRule && !task.isVirtual) {
+    if (activeTab === 'repeating' && task.repeatRule && !task.isVirtual && task.repeatRule.interval) {
       meta.appendChild(createRepeatEditor(task));
     }
 
@@ -615,7 +629,7 @@ function renderTasks() {
           const postponeActions = document.createElement('div');
           postponeActions.className = 'quick-actions';
 
-          [{ label: '+1d', days: 1 }, { label: '+2d', days: 2 }, { label: '+3d', days: 3 }, { label: '+1w', days: 7 }].forEach((option) => {
+          [{ label: '+2h', days: 1/12 }, { label: '+1d', days: 1 }, { label: '+2d', days: 2 }, { label: '+3d', days: 3 }].forEach((option) => {
             const button = document.createElement('button');
             button.type = 'button';
             button.className = 'quick-button';
@@ -675,10 +689,6 @@ function addTask(text) {
     item.section = noDue ? taskSectionSelect.value : 'today';
     item.dueDate = noDue ? getTodayIso() : normalizeDate(dueDateInput.value || getTodayIso());
     item.dueTime = noDue ? '' : dueTimeInput.value;
-
-    if (repeat && !item.dueTime && revealTimeInput.value) {
-      item.dueTime = revealTimeInput.value;
-    }
   }
 
   tasks.push(item);
@@ -700,6 +710,19 @@ function postponeTask(taskId, days) {
   tasks = tasks.map((task) => {
     if (task.id !== taskId) return task;
     if (task.noDue) return task;
+    if (days < 1) {
+      if (task.repeatRule && task.repeatRule?.revealTime) return {...task};
+      const now = new Date();
+      const [hours, minutes] = task.repeatRule?.revealTime?.split(':').map(Number) || [now.getHours(), now.getMinutes()];
+      console.log('Postponing by 2 hours:', hours, minutes);
+      return {
+        ...task,
+        repeatRule: {
+          ...task.repeatRule,
+          revealTime: `${String(hours + days * 24).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`,
+        },
+      }
+    }
 
     if (task.type === 'event') {
       return {
@@ -814,7 +837,7 @@ function getNextRepeatOccurrence(task) {
         type: 'task',
         text: task.text,
         dueDate: iso,
-        dueTime: task.repeatRule.revealTime || task.dueTime || '',
+        dueTime: task.dueTime || '',
         noDue: false,
         section: 'today',
         completed: false,
