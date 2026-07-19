@@ -1,6 +1,2 @@
-* add a couple more hours for show time, instead of by day
-* repeating events not in chrono for next month view
 ~ reveal time still not quite working
-* check edit repeat rule logic
-* weird green hue for day selector, change to just letters to name days on mobile
-* it sets dueTime as you set revealTime
+- repeating events don't start on the correct day when created and due day doesn't match the repeating rule 

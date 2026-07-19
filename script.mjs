@@ -449,7 +449,7 @@ function getRepeatOccurrences(task, startIso, endIso) {
   if (!task.repeatRule || task.completed) return [];
 
   const rule = task.repeatRule;
-  const anchorIso = task.type === 'event' ? task.startDate : task.dueDate;
+  const anchorIso = task.type === 'event' ? task.startDate : task.dueDate || startIso;
   const startDate = new Date(`${startIso}T00:00:00`);
   const endDate = new Date(`${endIso}T23:59:59`);
   const candidate = new Date(Math.max(new Date(`${anchorIso}T00:00:00`).getTime(), startDate.getTime()));
@@ -465,6 +465,18 @@ function getRepeatOccurrences(task, startIso, endIso) {
   }
 
   return occurrences;
+}
+
+function getNextValidStartDate(startIso, rule, item) {
+  const anchorIso = startIso;
+  let candidate = new Date(`${startIso}T00:00:00`);
+  while (true) {
+    const iso = candidate.toISOString().slice(0, 10);
+    if (matchesRepeatRule(item, iso, rule, anchorIso)) {
+      return iso;
+    }
+    candidate.setDate(candidate.getDate() + 1);
+  }
 }
 
 function getItemsForTab() {
@@ -676,7 +688,14 @@ function addTask(text) {
   };
 
   if (itemType === 'event') {
-    item.startDate = normalizeDate(startDateInput.value || getTodayIso());
+    // Get the start date for the event from the input field, or use the next applicable date based on the repeat rule if no start date is provided.
+    // MAKE SURE that if the start date does not match the repeat rule, it should be adjusted to the next valid date according to the repeat rule.
+    let startDate = startDateInput.value || getTodayIso();
+    startDate = normalizeDate(startDate); // Ensure the start date is in the correct format.
+    startDate = repeatRule ? getNextValidStartDate(startDate, repeatRule, item) : startDate; // Adjust to the next valid date if necessary.
+    startDateInput.value = startDate; // Update the input field to reflect the actual start date being used.
+
+    item.startDate = startDate;
     item.startTime = startTimeInput.value;
     item.endTime = endTimeInput.value;
 
@@ -685,6 +704,12 @@ function addTask(text) {
       return null;
     }
   } else {
+    // do the same thing here
+    let startDate = noDue ? getTodayIso() : dueDateInput.value || getTodayIso();
+    startDate = normalizeDate(startDate); // Ensure the start date is in the correct format.
+    startDate = repeatRule ? getNextValidStartDate(startDate, repeatRule, item) : startDate; // Adjust to the next valid date if necessary.
+    dueDateInput.value = startDate; // Update the input field to reflect the actual start date being used.
+
     item.noDue = noDue;
     item.section = noDue ? taskSectionSelect.value : 'today';
     item.dueDate = noDue ? getTodayIso() : normalizeDate(dueDateInput.value || getTodayIso());
