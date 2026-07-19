@@ -1,2 +1,1 @@
 ~ reveal time still not quite working
-- repeating events don't start on the correct day when created and due day doesn't match the repeating rule 
