@@ -32,6 +32,7 @@ const eventFields = document.querySelectorAll('.item-event');
 const revealTimeRow = document.getElementById('repeat-time-row');
 const submitRow = document.querySelector('.submit-row');
 let searchQuery = '';
+let editingTaskId = null;
 
 const STORAGE_KEY = 'todoapp-js-tasks';
 let activeTab = 'today';
@@ -71,7 +72,7 @@ function normalizeDate(value) {
 function addInterval(dateIso, interval, unit) {
   const date = new Date(`${dateIso}T00:00:00`);
   switch (unit) {
-    case 'week':startDate
+    case 'week': startDate
       date.setDate(date.getDate() + interval * 7);
       break;
     case 'month':
@@ -347,11 +348,11 @@ function createRepeatEditor(task) {
     <label>Repeat on</label>
     <div class="weekday-grid weekday-pill-grid">
       ${[0, 1, 2, 3, 4, 5, 6]
-        .map(
-          (day) =>
-            `<button type="button" class="weekday-pill ${selectedWeekdays.includes(day) ? 'selected' : ''}" data-day="${day}">${['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][day]}</button>`
-        )
-        .join('')}
+      .map(
+        (day) =>
+          `<button type="button" class="weekday-pill ${selectedWeekdays.includes(day) ? 'selected' : ''}" data-day="${day}">${['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][day]}</button>`
+      )
+      .join('')}
     </div>
   `;
 
@@ -530,12 +531,53 @@ function getItemsForTab() {
   return items.filter((item) => item.text.toLowerCase().includes(query));
 }
 
+const editableTabs = new Set(['today', 'tomorrow', 'next3', 'nextMonth', 'later']);
+
+function canRenameTask(task) {
+  return editableTabs.has(activeTab) && !task.isVirtual && !task.completed;
+}
+
+function beginTaskRename(taskId) {
+  editingTaskId = taskId;
+  renderTasks();
+}
+
+function cancelTaskRename() {
+  editingTaskId = null;
+  renderTasks();
+}
+
+function commitTaskRename(taskId, nextText) {
+  const task = tasks.find((item) => item.id === taskId);
+  if (!task) {
+    editingTaskId = null;
+    renderTasks();
+    return;
+  }
+
+  const trimmedText = nextText.trim();
+  if (trimmedText) {
+    task.text = trimmedText;
+    saveTasks();
+  }
+
+  editingTaskId = null;
+  renderTasks();
+}
+
 function renderTasks() {
   todoList.innerHTML = '';
-  
+
   // sort by due date and time
   const visibleTasks = getItemsForTab().sort((a, b) => {
-    return unFormatTime(a.dueTime || a.startTime, a.dueDate || a.startDate || getTodayIso()) - unFormatTime(b.dueTime || b.startTime, b.dueDate || b.startDate || getTodayIso());
+    console.log('Sorting tasks:', a, b);
+    console.log('Task A due:', a.dueDate, 'start:', a.startDate, 'dueTime:', a.dueTime, 'startTime:', a.startTime);
+    console.log('Task B due:', b.dueDate, 'start:', b.startDate, 'dueTime:', b.dueTime, 'startTime:', b.startTime);
+    console.log('Task A unformatted time:', unFormatTime(a.dueTime ?? a.startTime, a.dueDate ?? a.startDate ?? getTodayIso()));
+    console.log('Task B unformatted time:', unFormatTime(b.dueTime ?? b.startTime, b.dueDate ?? b.startDate ?? getTodayIso()));
+    // the problem is that a.dueTime can be "" which is falsy. it still should be passed through to unFormatTime, but the || operator will skip it. we need to check if it's undefined instead of falsy.
+    
+    return unFormatTime(a.dueTime ?? a.startTime, a.dueDate ?? a.startDate ?? getTodayIso()) - unFormatTime(b.dueTime ?? b.startTime, b.dueDate ?? b.startDate ?? getTodayIso());
   });
 
   if (visibleTasks.length === 0) {
@@ -552,10 +594,47 @@ function renderTasks() {
     listItem.className = `todo-item${task.completed ? ' completed' : ''}${task.isVirtual ? ' virtual' : ''}${isItemUrgent(task) ? ' urgent' : ''}`;
 
     const meta = document.createElement('div');
-    const taskTitle = document.createElement('p');
-    taskTitle.className = `task-title${task.completed ? ' completed' : ''}`;
-    taskTitle.textContent = task.text;
-    meta.appendChild(taskTitle);
+    const isEditingTask = editingTaskId === task.id;
+
+    if (isEditingTask) {
+      const taskTitleInput = document.createElement('input');
+      taskTitleInput.type = 'text';
+      taskTitleInput.className = `task-title task-title-input${task.completed ? ' completed' : ''}`;
+      taskTitleInput.value = task.text;
+      taskTitleInput.setAttribute('aria-label', 'Edit item name');
+      taskTitleInput.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          commitTaskRename(task.id, taskTitleInput.value);
+        }
+
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          cancelTaskRename();
+        }
+      });
+      taskTitleInput.addEventListener('blur', () => {
+        if (editingTaskId === task.id) {
+          commitTaskRename(task.id, taskTitleInput.value);
+        }
+      });
+      meta.appendChild(taskTitleInput);
+      requestAnimationFrame(() => {
+        if (editingTaskId === task.id) {
+          taskTitleInput.focus();
+          taskTitleInput.select();
+        }
+      });
+    } else {
+      const taskTitle = document.createElement('p');
+      taskTitle.className = `task-title${task.completed ? ' completed' : ''}`;
+      taskTitle.textContent = task.text;
+      if (canRenameTask(task)) {
+        taskTitle.title = 'Double-click to edit';
+        taskTitle.addEventListener('dblclick', () => beginTaskRename(task.id));
+      }
+      meta.appendChild(taskTitle);
+    }
 
     const taskMeta = document.createElement('div');
     taskMeta.className = 'todo-meta';
@@ -641,7 +720,7 @@ function renderTasks() {
           const postponeActions = document.createElement('div');
           postponeActions.className = 'quick-actions';
 
-          [{ label: '+2h', days: 1/12 }, { label: '+1d', days: 1 }, { label: '+2d', days: 2 }, { label: '+3d', days: 3 }].forEach((option) => {
+          [{ label: '+2h', days: 1 / 12 }, { label: '+1d', days: 1 }, { label: '+2d', days: 2 }, { label: '+3d', days: 3 }].forEach((option) => {
             const button = document.createElement('button');
             button.type = 'button';
             button.className = 'quick-button';
@@ -670,13 +749,13 @@ function addTask(text) {
 
   const repeatRule = repeat
     ? {
-        interval: Math.max(1, Number(repeatIntervalInput.value) || 1),
-        unit: repeatUnitSelect.value,
-        stopDate: repeatEndInput.value || '',
-        revealTime: itemType === 'task' ? revealTimeInput.value || '' : '',
-        daysOfWeek: Array.from(repeatWeekdayField.querySelectorAll('.weekday-pill.selected')).map((button) => Number(button.dataset.day)),
-        daysOfMonth: parseMonthDays(repeatMonthdaysInput.value),
-      }
+      interval: Math.max(1, Number(repeatIntervalInput.value) || 1),
+      unit: repeatUnitSelect.value,
+      stopDate: repeatEndInput.value || '',
+      revealTime: itemType === 'task' ? revealTimeInput.value || '' : '',
+      daysOfWeek: Array.from(repeatWeekdayField.querySelectorAll('.weekday-pill.selected')).map((button) => Number(button.dataset.day)),
+      daysOfMonth: parseMonthDays(repeatMonthdaysInput.value),
+    }
     : null;
 
   const item = {
@@ -736,7 +815,7 @@ function postponeTask(taskId, days) {
     if (task.id !== taskId) return task;
     if (task.noDue) return task;
     if (days < 1) {
-      if (task.repeatRule && task.repeatRule?.revealTime) return {...task};
+      if (task.repeatRule && task.repeatRule?.revealTime) return { ...task };
       const now = new Date();
       const [hours, minutes] = task.repeatRule?.revealTime?.split(':').map(Number) || [now.getHours(), now.getMinutes()];
       console.log('Postponing by 2 hours:', hours, minutes);
