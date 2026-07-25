@@ -41,7 +41,7 @@ let tasks = [];
 // Import the functions you need from the SDKs you need
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-app.js";
 import { getDatabase, ref, set, get, child } from 'https://www.gstatic.com/firebasejs/12.15.0/firebase-database.js';
-import { getAuth, signInAnonymously, onAuthStateChanged, GoogleAuthProvider, signInWithRedirect, getRedirectResult, signInWithPopup } from 'https://www.gstatic.com/firebasejs/12.15.0/firebase-auth.js';
+import { getAuth, signInAnonymously, onAuthStateChanged, GoogleAuthProvider, signInWithRedirect, getRedirectResult, signInWithPopup, signOut } from 'https://www.gstatic.com/firebasejs/12.15.0/firebase-auth.js';
 
 const firebaseConfig = {
     apiKey: "AIzaSyALjre1-AqZq16I8XYSkftsMaZSI8BJmXE",
@@ -1160,6 +1160,16 @@ if (document.getElementById('sign-in-button')) {
         }
     });
 }
+
+document.getElementById('sign-out-button').addEventListener('click', async () => {
+    try {
+        await signOut(auth);
+        document.querySelector('.sign-in-shell').classList.remove('hidden');
+        document.querySelector('.app-shell').classList.add('hidden');
+    } catch (error) {
+        console.error('Error signing out:', error);
+    }
+});
 
 async function initialize() {
     dueDateInput.value = getTodayIso();
