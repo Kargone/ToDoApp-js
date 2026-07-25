@@ -1,2 +1,1 @@
-- sort the next three days tab*
-- edit the name of tasks via double clicking (on the normal section)
+netlify cross orgin, signinwithredirect untested
