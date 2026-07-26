@@ -1146,14 +1146,15 @@ if (document.getElementById('sign-in-button')) {
             // Check if you are currently running on localhost
             const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
             console.log('Is localhost:', isLocalhost);
+            await signInPopup(provider); 
 
-            if (isLocalhost) {
-                // Uses a popup window locally to bypass third-party cookie blocks
-                await signInPopup(provider); 
-            } else {
-                // Uses the redirect flow on your live Netlify site
-                await signInWithRedirect(auth, provider);
-            }
+            // if (isLocalhost) {
+            //     // Uses a popup window locally to bypass third-party cookie blocks
+                
+            // } else {
+            //     // Uses the redirect flow on your live Netlify site
+            //     await signInWithRedirect(auth, provider);
+            // }
             if (user) {
                 document.querySelector('.sign-in-shell').classList.add('hidden');
                 document.querySelector('.app-shell').classList.remove('hidden');
