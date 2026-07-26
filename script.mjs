@@ -59,6 +59,7 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const provider = new GoogleAuthProvider();
 
+initializeFirebase();
 
 let firebaseDb = null;
 let user = null;
@@ -1183,4 +1184,3 @@ async function initialize() {
     setActiveTab(activeTab);
 }
 
-initializeFirebase();
