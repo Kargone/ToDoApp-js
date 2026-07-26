@@ -31,6 +31,36 @@ const taskFields = document.querySelectorAll('.item-task');
 const eventFields = document.querySelectorAll('.item-event');
 const revealTimeRow = document.getElementById('repeat-time-row');
 const submitRow = document.querySelector('.submit-row');
+
+function initializeFirebase() {
+    onAuthStateChanged(auth, (user) => {
+        if (user) {
+            console.log("User is securely logged in:", user.uid);
+            currentUser = user;
+            // Update your UI or redirect to a dashboard here
+            document.querySelector('.sign-in-shell').classList.add('hidden');
+            document.querySelector('.app-shell').classList.remove('hidden');
+            initialize();
+        } else {
+            currentUser = null;
+            console.log("No authenticated user session found.");
+        }
+    });
+    
+
+    /*
+    try {
+        const credential = await signInAnonymously(auth);
+        currentUser = credential.user;
+        firebaseDb = getDatabase(app);
+        console.log('Successfully signed in anonymously!', currentUser.uid);
+        await loadRemoteTasks();
+    } catch (error) {
+        console.error('Error signing in:', error.code, error.message);
+    }
+    */
+}
+
 let searchQuery = '';
 let editingTaskId = null;
 
@@ -59,11 +89,11 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const provider = new GoogleAuthProvider();
 
-initializeFirebase();
-
 let firebaseDb = null;
 let user = null;
 let currentUser = null;
+
+initializeFirebase();
 
 function getTodayIso() {
     const now = new Date();
@@ -217,35 +247,6 @@ async function loadRemoteTasks() {
     } catch (error) {
         console.warn('Firebase load failed', error);
     }
-}
-
-async function initializeFirebase() {
-    onAuthStateChanged(auth, (user) => {
-        if (user) {
-            console.log("User is securely logged in:", user.uid);
-            currentUser = user;
-            // Update your UI or redirect to a dashboard here
-            document.querySelector('.sign-in-shell').classList.add('hidden');
-            document.querySelector('.app-shell').classList.remove('hidden');
-            initialize();
-        } else {
-            currentUser = null;
-            console.log("No authenticated user session found.");
-        }
-    });
-    
-
-    /*
-    try {
-        const credential = await signInAnonymously(auth);
-        currentUser = credential.user;
-        firebaseDb = getDatabase(app);
-        console.log('Successfully signed in anonymously!', currentUser.uid);
-        await loadRemoteTasks();
-    } catch (error) {
-        console.error('Error signing in:', error.code, error.message);
-    }
-    */
 }
 
 function matchesRepeatRule(item, dateIso, rule, anchorIso) {
