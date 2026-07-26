@@ -226,6 +226,7 @@ async function initializeFirebase() {
             // Update your UI or redirect to a dashboard here
             document.querySelector('.sign-in-shell').classList.add('hidden');
             document.querySelector('.app-shell').classList.remove('hidden');
+            initialize();
         } else {
             currentUser = null;
             console.log("No authenticated user session found.");
@@ -1175,7 +1176,6 @@ async function initialize() {
     dueDateInput.value = getTodayIso();
     startDateInput.value = getTodayIso();
     itemTypeSelect.value = 'task';
-    await initializeFirebase();
     updateFormMode();
     updateNoDueState();
     updateRepeatVisibility();
@@ -1183,6 +1183,4 @@ async function initialize() {
     setActiveTab(activeTab);
 }
 
-window.addEventListener('load', () => {
-    initialize();
-});
+initializeFirebase();
