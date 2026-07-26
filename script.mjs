@@ -37,10 +37,12 @@ function initializeFirebase() {
         if (user) {
             console.log("User is securely logged in:", user.uid);
             currentUser = user;
+            firebaseDb = getDatabase(app);
             // Update your UI or redirect to a dashboard here
             document.querySelector('.sign-in-shell').classList.add('hidden');
             document.querySelector('.app-shell').classList.remove('hidden');
             initialize();
+            loadRemoteTasks();
         } else {
             currentUser = null;
             console.log("No authenticated user session found.");
@@ -241,6 +243,9 @@ async function loadRemoteTasks() {
             }
         } else {
             console.log('No data available at this location.');
+            // If no data exists, you might want to initialize tasks to an empty array or handle it as needed
+            tasks = [];
+            renderTasks();
         }
 
         console.log('Firebase load completed');
@@ -587,13 +592,6 @@ function renderTasks() {
 
     // sort by due date and time
     const visibleTasks = getItemsForTab().sort((a, b) => {
-        console.log('Sorting tasks:', a, b);
-        console.log('Task A due:', a.dueDate, 'start:', a.startDate, 'dueTime:', a.dueTime, 'startTime:', a.startTime);
-        console.log('Task B due:', b.dueDate, 'start:', b.startDate, 'dueTime:', b.dueTime, 'startTime:', b.startTime);
-        console.log('Task A unformatted time:', unFormatTime(a.dueTime ?? a.startTime, a.dueDate ?? a.startDate ?? getTodayIso()));
-        console.log('Task B unformatted time:', unFormatTime(b.dueTime ?? b.startTime, b.dueDate ?? b.startDate ?? getTodayIso()));
-        // the problem is that a.dueTime can be "" which is falsy. it still should be passed through to unFormatTime, but the || operator will skip it. we need to check if it's undefined instead of falsy.
-
         return unFormatTime(a.dueTime ?? a.startTime, a.dueDate ?? a.startDate ?? getTodayIso()) - unFormatTime(b.dueTime ?? b.startTime, b.dueDate ?? b.startDate ?? getTodayIso());
     });
 
@@ -1165,15 +1163,15 @@ if (document.getElementById('sign-in-button')) {
     });
 }
 
-document.getElementById('sign-out-button').addEventListener('click', async () => {
-    try {
-        await signOut(auth);
-        document.querySelector('.sign-in-shell').classList.remove('hidden');
-        document.querySelector('.app-shell').classList.add('hidden');
-    } catch (error) {
-        console.error('Error signing out:', error);
-    }
-});
+// document.getElementById('sign-out-button').addEventListener('click', async () => {
+//     try {
+//         await signOut(auth);
+//         document.querySelector('.sign-in-shell').classList.remove('hidden');
+//         document.querySelector('.app-shell').classList.add('hidden');
+//     } catch (error) {
+//         console.error('Error signing out:', error);
+//     }
+// });
 
 async function initialize() {
     dueDateInput.value = getTodayIso();
