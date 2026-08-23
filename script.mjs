@@ -532,6 +532,8 @@ function getItemsForTab() {
             items = tasks.filter((item) => item.noDue && item.section === 'later' && !item.completed);
         } else if (activeTab === 'today') {
             items = tasks.filter((item) => {
+                const now = new Date();
+                if (item.minShowTime && item.minShowTime > now) return false;
                 if (item.completed) return false;
                 if (unFormatTime(item.dueTime || '', item.dueDate || '') > unFormatTime("23:59", getTodayIso())) return false;
                 if (unFormatTime(item.startTime || '', item.startDate || '') > unFormatTime("23:59", getTodayIso())) return false;
@@ -826,21 +828,17 @@ function removeTask(taskId) {
 }
 
 function postponeTask(taskId, days) {
-    tasks = tasks.map((task) => {
-        if (task.id !== taskId) return task;
+    tasks = tasks.map((task) => {if (task.id !== taskId) return task;
         if (task.noDue) return task;
+
         if (days < 1) {
-            if (task.repeatRule && task.repeatRule?.revealTime) return { ...task };
-            const now = new Date();
-            const [hours, minutes] = task.repeatRule?.revealTime?.split(':').map(Number) || [now.getHours(), now.getMinutes()];
-            console.log('Postponing by 2 hours:', hours, minutes);
+            const now = Date.now();
+            const minShowTime = now + days * 24 * 60 * 60 * 1000;
+            
             return {
                 ...task,
-                repeatRule: {
-                    ...task.repeatRule,
-                    revealTime: `${String(hours + days * 24).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`,
-                },
-            }
+                minShowTime: minShowTime,
+            };
         }
 
         if (task.type === 'event') {
@@ -855,6 +853,8 @@ function postponeTask(taskId, days) {
             dueDate: addInterval(task.dueDate, days, 'day'),
         };
     });
+
+    console.log(tasks)
 
     saveTasks();
     renderTasks();
