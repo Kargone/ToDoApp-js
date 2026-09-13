@@ -153,8 +153,40 @@
               </div>
 
               <div class="field repeat-monthday hidden" id="repeat-monthday-field">
+                <label for="repeat-month-pattern">Monthly pattern</label>
+                <select id="repeat-month-pattern">
+                  <option value="days">Days of month</option>
+                  <option value="weekday">Week of month</option>
+                </select>
+              </div>
+
+              <div class="field repeat-monthday hidden" id="repeat-month-days-field">
                 <label for="repeat-monthdays">Days of month</label>
                 <input id="repeat-monthdays" type="text" placeholder="e.g. 1, 15, 28" />
+              </div>
+
+              <div class="field repeat-monthday hidden" id="repeat-month-week-field">
+                <label>Week of month</label>
+                <div class="month-week-grid weekday-pill-grid">
+                  <button type="button" class="weekday-pill selected" data-week="1">1st</button>
+                  <button type="button" class="weekday-pill" data-week="2">2nd</button>
+                  <button type="button" class="weekday-pill" data-week="3">3rd</button>
+                  <button type="button" class="weekday-pill" data-week="4">4th</button>
+                  <button type="button" class="weekday-pill" data-week="5">5th</button>
+                </div>
+              </div>
+
+              <div class="field repeat-monthday hidden" id="repeat-month-weekday-field">
+                <label>Day of week</label>
+                <div class="month-weekday-grid weekday-pill-grid">
+                  <button type="button" class="weekday-pill selected" data-day="0">Sun</button>
+                  <button type="button" class="weekday-pill" data-day="1">Mon</button>
+                  <button type="button" class="weekday-pill" data-day="2">Tue</button>
+                  <button type="button" class="weekday-pill" data-day="3">Wed</button>
+                  <button type="button" class="weekday-pill" data-day="4">Thu</button>
+                  <button type="button" class="weekday-pill" data-day="5">Fri</button>
+                  <button type="button" class="weekday-pill" data-day="6">Sat</button>
+                </div>
               </div>
 
               <div class="field">

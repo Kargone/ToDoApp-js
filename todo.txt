@@ -1,0 +1,5 @@
+- To do app stop repeating doesn't work
+- Later now has all future non reapeating tasks
+- Make it so that you can repeat using the day of the week & week number for each month
+- Sorted completed by most recent
+- Fixed the pill display for selecting days of week on repeating tasks

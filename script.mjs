@@ -18,6 +18,12 @@ const repeatControls = document.getElementById('repeat-controls');
 const repeatWeekdayField = document.getElementById('repeat-weekday-field');
 const repeatMonthdayField = document.getElementById('repeat-monthday-field');
 const repeatMonthdaysInput = document.getElementById('repeat-monthdays');
+const repeatMonthPatternSelect = document.getElementById('repeat-month-pattern');
+const repeatMonthDaysField = document.getElementById('repeat-month-days-field');
+const repeatMonthWeekField = document.getElementById('repeat-month-week-field');
+const repeatMonthWeekdayField = document.getElementById('repeat-month-weekday-field');
+const repeatMonthWeekButtons = repeatMonthWeekField.querySelectorAll('[data-week]');
+const repeatMonthWeekdayButtons = repeatMonthWeekdayField.querySelectorAll('[data-day]');
 const advancedOptions = document.getElementById('advanced-options');
 const taskSectionRow = document.getElementById('task-section-row');
 const todoList = document.getElementById('todo-list');
@@ -159,6 +165,22 @@ function parseMonthDays(value) {
     ).sort((a, b) => a - b);
 }
 
+function isRepeatActive(rule, todayIso = getTodayIso()) {
+    return !rule?.stopDate || rule.stopDate >= todayIso;
+}
+
+function getNthWeekdayDate(year, month, week, weekday) {
+    const firstDay = new Date(year, month, 1);
+    const day = 1 + ((weekday - firstDay.getDay() + 7) % 7) + (week - 1) * 7;
+    const date = new Date(year, month, day);
+    return date.getMonth() === month ? date : null;
+}
+
+function getSelectedValues(container, attribute) {
+    const dataKey = attribute.slice(5);
+    return Array.from(container.querySelectorAll(`.weekday-pill.selected[${attribute}]`)).map((button) => Number(button.dataset[dataKey]));
+}
+
 function formatTime(timeValue) {
     if (!timeValue) return '';
     const date = new Date(`1970-01-01T${timeValue}`);
@@ -206,6 +228,13 @@ function formatRepeatLabel(rule) {
     }
     if (rule.unit === 'month' && rule.daysOfMonth?.length) {
         labels.push(`on ${rule.daysOfMonth.join(', ')}`);
+    }
+    if (rule.unit === 'month' && rule.monthPattern === 'weekday') {
+        const weekNames = ['', 'first', 'second', 'third', 'fourth', 'fifth'];
+        const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        const weeks = Array.isArray(rule.monthWeeks) ? rule.monthWeeks : [rule.monthWeek || 1];
+        const weekdays = Array.isArray(rule.monthWeekdays) ? rule.monthWeekdays : [rule.monthWeekday || 0];
+        labels.push(`on the ${weeks.map((week) => weekNames[week]).join(' or ')} ${weekdays.map((day) => dayNames[day]).join(' or ')}`);
     }
     return labels.join(' ');
 }
@@ -271,10 +300,16 @@ function matchesRepeatRule(item, dateIso, rule, anchorIso) {
             return weeks % rule.interval === 0;
         }
         case 'month': {
-            if (!rule.daysOfMonth?.length) return false;
-            const day = date.getDate();
-            if (!rule.daysOfMonth.includes(day)) return false;
-            return monthsBetween(anchorIso, dateIso) % rule.interval === 0;
+            if (monthsBetween(anchorIso, dateIso) % rule.interval !== 0) return false;
+            if (rule.monthPattern === 'weekday') {
+                const weeks = Array.isArray(rule.monthWeeks) ? rule.monthWeeks : [rule.monthWeek || 1];
+                const weekdays = Array.isArray(rule.monthWeekdays) ? rule.monthWeekdays : [rule.monthWeekday || 0];
+                return weeks.some((week) => weekdays.some((weekday) => {
+                    const occurrence = getNthWeekdayDate(date.getFullYear(), date.getMonth(), Number(week), Number(weekday));
+                    return occurrence?.getDate() === date.getDate();
+                }));
+            }
+            return rule.daysOfMonth?.includes(date.getDate()) || false;
         }
         case 'year':
             return (
@@ -404,7 +439,10 @@ function createRepeatEditor(task) {
             stopDate: stopValue || '',
             revealTime: revealTimeValue || '',
             daysOfWeek: weekDays,
-            daysOfMonth: parseMonthDays(monthdayField.querySelector('.edit-repeat-monthdays').value)
+            daysOfMonth: parseMonthDays(monthdayField.querySelector('.edit-repeat-monthdays').value),
+            monthPattern: task.repeatRule.monthPattern || 'days',
+            monthWeeks: task.repeatRule.monthWeeks || [task.repeatRule.monthWeek || 1],
+            monthWeekdays: task.repeatRule.monthWeekdays || [task.repeatRule.monthWeekday || 0],
         };
 
         saveTasks();
@@ -469,7 +507,7 @@ function createRepeatOccurrence(task, dateIso) {
 }
 
 function getRepeatOccurrences(task, startIso, endIso) {
-    if (!task.repeatRule || task.completed) return [];
+    if (!task.repeatRule || task.completed || !isRepeatActive(task.repeatRule)) return [];
 
     const rule = task.repeatRule;
     const anchorIso = task.type === 'event' ? task.startDate : task.dueDate || startIso;
@@ -508,7 +546,7 @@ function getItemsForTab() {
     // console.log('Active tab:', activeTab, 'Search query:', searchQuery);
 
     if (activeTab === 'repeating') {
-        items = tasks.filter((item) => item.repeatRule && !item.isVirtual);
+        items = tasks.filter((item) => item.repeatRule && isRepeatActive(item.repeatRule) && !item.isVirtual);
     } else {
         const baseItems = tasks.filter((item) => getCategory(item) === activeTab);
 
@@ -529,7 +567,20 @@ function getItemsForTab() {
             const virtuals = tasks.flatMap((item) => getRepeatOccurrences(item, today, rangeEnd)).filter((item) => item.type === 'event');
             items = [...eventItems, ...virtuals];
         } else if (activeTab === 'later') {
-            items = tasks.filter((item) => item.noDue && item.section === 'later' && !item.completed);
+            items = tasks.filter((item) => item.type === 'task' && ((item.noDue && item.section === 'later') || (!item.noDue && !item.repeatRule)) && !item.completed);
+            items.sort((a, b) => {
+                if (a.noDue && !b.noDue) return -1;
+                if (!a.noDue && b.noDue) return 1;
+                if (a.dueDate && b.dueDate) {
+                    if (a.dueDate < b.dueDate) return -1;
+                    if (a.dueDate > b.dueDate) return 1;
+                    if (a.dueTime && b.dueTime) {
+                        if (a.dueTime < b.dueTime) return -1;
+                        if (a.dueTime > b.dueTime) return 1;
+                    }
+                }
+                return 0;
+            });
         } else if (activeTab === 'today') {
             items = tasks.filter((item) => {
                 const now = new Date();
@@ -590,12 +641,23 @@ function commitTaskRename(taskId, nextText) {
 }
 
 function renderTasks() {
+    expireStoppedRepeats();
     todoList.innerHTML = '';
 
+    let visibleTasks;
+
     // sort by due date and time
-    const visibleTasks = getItemsForTab().sort((a, b) => {
-        return unFormatTime(a.dueTime ?? a.startTime, a.dueDate ?? a.startDate ?? getTodayIso()) - unFormatTime(b.dueTime ?? b.startTime, b.dueDate ?? b.startDate ?? getTodayIso());
-    });
+    if (activeTab === 'completed') {
+        visibleTasks = getItemsForTab().sort((a, b) => {
+            const aTime = unFormatTime(a.dueTime ?? a.startTime, a.dueDate ?? a.startDate ?? getTodayIso());
+            const bTime = unFormatTime(b.dueTime ?? b.startTime, b.dueDate ?? b.startDate ?? getTodayIso());
+            return bTime - aTime;
+        });
+    } else {
+        visibleTasks = getItemsForTab().sort((a, b) => {
+            return unFormatTime(a.dueTime ?? a.startTime, a.dueDate ?? a.startDate ?? getTodayIso()) - unFormatTime(b.dueTime ?? b.startTime, b.dueDate ?? b.startDate ?? getTodayIso());
+        });
+    }
 
     if (visibleTasks.length === 0) {
         emptyState.style.display = 'block';
@@ -772,6 +834,9 @@ function addTask(text) {
             revealTime: itemType === 'task' ? revealTimeInput.value || '' : '',
             daysOfWeek: Array.from(repeatWeekdayField.querySelectorAll('.weekday-pill.selected')).map((button) => Number(button.dataset.day)),
             daysOfMonth: parseMonthDays(repeatMonthdaysInput.value),
+            monthPattern: repeatMonthPatternSelect.value,
+            monthWeeks: getSelectedValues(repeatMonthWeekField, 'data-week'),
+            monthWeekdays: getSelectedValues(repeatMonthWeekdayField, 'data-day'),
         }
         : null;
 
@@ -1000,6 +1065,22 @@ function updateRepeatFieldVisibility() {
     const unit = repeatUnitSelect.value;
     repeatWeekdayField.classList.toggle('hidden', unit !== 'week');
     repeatMonthdayField.classList.toggle('hidden', unit !== 'month');
+    const isWeekdayPattern = unit === 'month' && repeatMonthPatternSelect.value === 'weekday';
+    repeatMonthDaysField.classList.toggle('hidden', unit !== 'month' || isWeekdayPattern);
+    repeatMonthWeekField.classList.toggle('hidden', !isWeekdayPattern);
+    repeatMonthWeekdayField.classList.toggle('hidden', !isWeekdayPattern);
+}
+
+function expireStoppedRepeats() {
+    const today = getTodayIso();
+    let changed = false;
+    tasks.forEach((task) => {
+        if (task.repeatRule?.stopDate && task.repeatRule.stopDate < today) {
+            task.repeatRule = null;
+            changed = true;
+        }
+    });
+    if (changed) saveTasks();
 }
 
 function isItemUrgent(item) {
@@ -1038,6 +1119,7 @@ noDueCheckbox.addEventListener('change', () => {
 
 repeatTaskCheckbox.addEventListener('change', updateRepeatVisibility);
 repeatUnitSelect.addEventListener('change', updateRepeatFieldVisibility);
+repeatMonthPatternSelect.addEventListener('change', updateRepeatFieldVisibility);
 itemTypeSelect.addEventListener('change', () => {
     updateFormMode();
 });
@@ -1059,6 +1141,14 @@ repeatWeekdayField.addEventListener('click', (event) => {
     const button = event.target.closest('.weekday-pill');
     if (!button) return;
     button.classList.toggle('selected');
+});
+
+[repeatMonthWeekField, repeatMonthWeekdayField].forEach((field) => {
+    field.addEventListener('click', (event) => {
+        const button = event.target.closest('.weekday-pill');
+        if (!button) return;
+        button.classList.toggle('selected');
+    });
 });
 
 searchInput.addEventListener('input', (event) => {
@@ -1115,6 +1205,9 @@ todoForm.addEventListener('submit', (event) => {
     repeatEndInput.value = '';
     revealTimeInput.value = '';
     repeatMonthdaysInput.value = '';
+    repeatMonthPatternSelect.value = 'days';
+    repeatMonthWeekButtons.forEach((button) => button.classList.toggle('selected', button.dataset.week === '1'));
+    repeatMonthWeekdayButtons.forEach((button) => button.classList.toggle('selected', button.dataset.day === '0'));
     taskSectionSelect.value = 'today';
     noDueCheckbox.checked = false;
     advancedOptions.classList.add('hidden');
