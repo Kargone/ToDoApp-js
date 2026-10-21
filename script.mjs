@@ -1130,7 +1130,36 @@ function postponeTask(taskId, days) {
     renderTasks();
 }
 
+// Snapshot of the fields a repeat completion changes, so an accidental tick can be undone the same day.
+function definedFields(fields) {
+    return Object.fromEntries(Object.entries(fields).filter(([, value]) => value !== undefined));
+}
+
+function undoRepeatCompletion(occurrence) {
+    const { templateId, ...fields } = occurrence.undo;
+
+    if (templateId === occurrence.id) {
+        // Last occurrence: the item itself was completed and lost its rule.
+        const { completedOn, dismissed, undo, ...rest } = occurrence;
+        tasks = tasks.map((item) => (item.id === occurrence.id ? { ...rest, ...fields, completed: false } : item));
+        return true;
+    }
+
+    if (!tasks.some((item) => item.id === templateId)) return false;
+    tasks = tasks
+        .filter((item) => item.id !== occurrence.id)
+        .map((item) => (item.id === templateId ? { ...item, ...fields } : item));
+    return true;
+}
+
 function toggleTask(taskId) {
+    const target = tasks.find((item) => item.id === taskId);
+    if (target?.completed && target.undo && target.completedOn === getTodayIso() && undoRepeatCompletion(target)) {
+        saveTasks();
+        renderTasks();
+        return;
+    }
+
     const newTasks = [];
 
     tasks.forEach((task) => {
@@ -1156,11 +1185,13 @@ function toggleTask(taskId) {
                 completedOccurrence.startDate = currentIso;
                 completedOccurrence.startTime = task.startTime;
                 completedOccurrence.endTime = task.endTime;
+                completedOccurrence.undo = definedFields({ templateId: task.id, startDate: task.startDate, startTime: task.startTime, endTime: task.endTime });
             } else {
                 completedOccurrence.dueDate = currentIso;
                 completedOccurrence.dueTime = task.dueTime;
                 completedOccurrence.noDue = task.noDue;
                 completedOccurrence.section = task.section;
+                completedOccurrence.undo = definedFields({ templateId: task.id, dueDate: task.dueDate, dueTime: task.dueTime });
             }
 
             const nextOccurrence = getNextRepeatOccurrence(task);
@@ -1183,14 +1214,14 @@ function toggleTask(taskId) {
                 newTasks.push(updatedTask);
                 newTasks.push(completedOccurrence);
             } else {
-                newTasks.push({ ...task, completed: true, completedOn: getTodayIso(), dismissed: false, repeatRule: null });
+                newTasks.push({ ...task, completed: true, completedOn: getTodayIso(), dismissed: false, repeatRule: null, undo: { templateId: task.id, repeatRule: task.repeatRule } });
             }
 
             return;
         }
 
         if (task.completed) {
-            const { completedOn, dismissed, ...rest } = task;
+            const { completedOn, dismissed, undo, ...rest } = task;
             newTasks.push({ ...rest, completed: false });
         } else {
             newTasks.push({ ...task, completed: true, completedOn: getTodayIso(), dismissed: false });
@@ -1540,6 +1571,18 @@ accountButton.addEventListener('click', () => openMenu(accountButton, [
     'sep',
     { label: 'Sign out', icon: 'sign-out', onSelect: signOutUser },
 ]));
+
+// Re-render when the page comes back into view and once a minute, so the date line, overdue colors and
+// yesterday's struck-through items stay current. Skipped while the user is mid-interaction.
+function refreshIfIdle() {
+    if (appShell.classList.contains('hidden') || addSheet.open || openMenuState || editingTaskId || repeatEditorTaskId) return;
+    renderTasks();
+}
+
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') refreshIfIdle();
+});
+setInterval(refreshIfIdle, 60 * 1000);
 
 const THEME_KEY = 'todo-theme';
 
