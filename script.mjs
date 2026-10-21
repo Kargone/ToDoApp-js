@@ -79,6 +79,7 @@ let tasks = [];
 // Import the functions you need from the SDKs you need
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-app.js";
 import { getDatabase, ref, set, get, child } from 'https://www.gstatic.com/firebasejs/12.15.0/firebase-database.js';
+import { showsInDateTab } from './view-logic.mjs';
 import { getAuth, signInAnonymously, onAuthStateChanged, GoogleAuthProvider, signInWithRedirect, getRedirectResult, signInWithPopup, signOut } from 'https://www.gstatic.com/firebasejs/12.15.0/firebase-auth.js';
 
 const firebaseConfig = {
@@ -548,7 +549,11 @@ function getItemsForTab() {
     if (activeTab === 'repeating') {
         items = tasks.filter((item) => item.repeatRule && isRepeatActive(item.repeatRule) && !item.isVirtual);
     } else {
-        const baseItems = tasks.filter((item) => getCategory(item) === activeTab);
+        const todayIso = getTodayIso();
+        const baseItems = tasks.filter((item) => {
+            if (!item.completed) return getCategory(item) === activeTab;
+            return showsInDateTab(item, todayIso) && getCategory({ ...item, completed: false }) === activeTab;
+        });
 
         if (activeTab === 'tomorrow' || activeTab === 'next3') {
             const today = getTodayIso();
@@ -560,14 +565,14 @@ function getItemsForTab() {
             const today = getTodayIso();
             const rangeEnd = addInterval(today, 1, 'month');
             const eventItems = tasks.filter((item) => {
-                if (item.completed || item.isVirtual || item.type !== 'event') return false;
+                if (!showsInDateTab(item, today) || item.isVirtual || item.type !== 'event') return false;
                 const dateIso = item.startDate;
                 return Boolean(dateIso && dateIso >= today && dateIso <= rangeEnd);
             });
             const virtuals = tasks.flatMap((item) => getRepeatOccurrences(item, today, rangeEnd)).filter((item) => item.type === 'event');
             items = [...eventItems, ...virtuals];
         } else if (activeTab === 'later') {
-            items = tasks.filter((item) => item.type === 'task' && ((item.noDue && item.section === 'later') || (!item.noDue && !item.repeatRule)) && !item.completed);
+            items = tasks.filter((item) => item.type === 'task' && ((item.noDue && item.section === 'later') || (!item.noDue && !item.repeatRule)) && showsInDateTab(item, todayIso));
             items.sort((a, b) => {
                 if (a.noDue && !b.noDue) return -1;
                 if (!a.noDue && b.noDue) return 1;
@@ -585,7 +590,7 @@ function getItemsForTab() {
             items = tasks.filter((item) => {
                 const now = new Date();
                 if (item.minShowTime && item.minShowTime > now) return false;
-                if (item.completed) return false;
+                if (!showsInDateTab(item, todayIso)) return false;
                 if (unFormatTime(item.dueTime || '', item.dueDate || '') > unFormatTime("23:59", getTodayIso())) return false;
                 if (unFormatTime(item.startTime || '', item.startDate || '') > unFormatTime("23:59", getTodayIso())) return false;
                 if (item.section === 'later') return false;
@@ -892,6 +897,15 @@ function removeTask(taskId) {
     renderTasks();
 }
 
+function dismissTask(taskId) {
+    const task = tasks.find((item) => item.id === taskId);
+    if (!task) return;
+
+    task.dismissed = true;
+    saveTasks();
+    renderTasks();
+}
+
 function postponeTask(taskId, days) {
     tasks = tasks.map((task) => {if (task.id !== taskId) return task;
         if (task.noDue) return task;
@@ -941,6 +955,8 @@ function toggleTask(taskId) {
                 type: task.type,
                 text: task.text,
                 completed: true,
+                completedOn: getTodayIso(),
+                dismissed: false,
                 repeatRule: null,
                 isVirtual: false,
             };
@@ -976,13 +992,18 @@ function toggleTask(taskId) {
                 newTasks.push(updatedTask);
                 newTasks.push(completedOccurrence);
             } else {
-                newTasks.push({ ...task, completed: true, repeatRule: null });
+                newTasks.push({ ...task, completed: true, completedOn: getTodayIso(), dismissed: false, repeatRule: null });
             }
 
             return;
         }
 
-        newTasks.push({ ...task, completed: !task.completed });
+        if (task.completed) {
+            const { completedOn, dismissed, ...rest } = task;
+            newTasks.push({ ...rest, completed: false });
+        } else {
+            newTasks.push({ ...task, completed: true, completedOn: getTodayIso(), dismissed: false });
+        }
     });
 
     tasks = newTasks;
