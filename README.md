@@ -1,43 +1,41 @@
 # ToDoApp-js
 
-A dark-mode browser todo and event app built with HTML, CSS, and JavaScript.
+A browser todo and event app with light and dark themes, built with plain HTML, CSS, and JavaScript.
 
 ## Features
 
 - Add tasks and events with due date, start/end time, and optional time values
-- No due date support with manual section assignment
-- Custom repeat scheduling by day, week, month, or year
-- Optional repeat stop date and repeat time for future occurrences
-- Repeating task tab with virtual occurrence rendering
-- Search/filter tasks by text
-- Import and export task data as JSON via clipboard
-- Quick postpone controls for due tasks
-- Organized tabs: Today, Tomorrow, Next 3 Days, Later, Repeating, Completed
-- Mark tasks complete and reopen completed items
-- Persistent storage using `localStorage`
-- Firebase Realtime Database sync with anonymous auth (when running via HTTP)
+- No due date support with manual section assignment (Today or Later)
+- Custom repeat scheduling by day, week (chosen weekdays), month (days of month or week-of-month), or year
+- Optional repeat stop date and reveal time for future occurrences
+- Tabs: Today, Tomorrow, Next 3 days, Next month, Later, Repeating, Completed, each with a count
+- Tick the circle to complete a task: it stays crossed off until you press its X (or until tomorrow), then lives in Completed
+- Per-task "…" menu: postpone (+2h, +1d, +2d, +3d), move no-due items, edit repeat rules, delete
+- Search the current tab
+- Import and export task data as JSON via the clipboard (account menu)
+- Light and dark themes; follows the system setting until you pick one
+- Firebase Realtime Database sync with Google sign-in
 
 ## Files
 
-- `index.html` — app structure and UI
-- `styles.css` — dark theme styling and layout
-- `script.mjs` — task logic, tabs, filters, persistence, and Firebase sync
+- `index.html` — page structure, sign-in screen, add-item sheet
+- `styles.css` — the Graphite design tokens and all component styles
+- `script.mjs` — task logic, tabs, menus, Firebase sync
+- `view-logic.mjs` — pure display helpers (time column, overdue, theme), unit-tested
+- `icons.mjs` — inline SVG icon set
 
 ## Run locally
 
-1. Start a local HTTP server and open `index.html` in your browser.
-   - Example: `py -m http.server 8000`
-2. Access the app at `http://localhost:8000/`.
-3. Use Firebase sync only when served over HTTP/HTTPS.
+1. Start a local HTTP server: `py -m http.server 8000`
+2. Open `http://localhost:8000/` and sign in with Google.
+
+## Tests
+
+`node --test` (Node 20+, no dependencies)
 
 ## Notes
 
-- Tasks overdue by a day are shown in the Today section.
-- `localStorage` keeps your tasks on the same browser and machine.
+- Tasks are stored in Firebase under your account; nothing task-related is kept in the browser.
+- The theme choice is the only thing saved in `localStorage` (key `todo-theme`).
+- Items overdue from earlier days show in Today with an orange time.
 - Clipboard import/export uses JSON text on the clipboard.
-
-## Future improvements
-
-- Add editing for existing tasks
-- Add due-date sorting and richer overdue highlighting
-- Add tags, calendar view, and better repeat pattern editing
