@@ -37,6 +37,14 @@ const signInShell = document.getElementById('sign-in-shell');
 const appShell = document.getElementById('app-shell');
 const typeTaskButton = document.getElementById('type-task');
 const typeEventButton = document.getElementById('type-event');
+const searchButton = document.getElementById('search-button');
+const accountButton = document.getElementById('account-button');
+const newItemButton = document.getElementById('new-item-button');
+const addSheet = document.getElementById('add-sheet');
+const sheetCancelButton = document.getElementById('sheet-cancel');
+const dayDate = document.getElementById('day-date');
+const dayTitle = document.getElementById('day-title');
+const dayCount = document.getElementById('day-count');
 
 function initializeFirebase() {
     onAuthStateChanged(auth, (user) => {
@@ -80,7 +88,7 @@ let tasks = [];
 // Import the functions you need from the SDKs you need
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-app.js";
 import { getDatabase, ref, set, get, child } from 'https://www.gstatic.com/firebasejs/12.15.0/firebase-database.js';
-import { showsInDateTab, resolveTheme, isOverdue, formatTimeCell } from './view-logic.mjs';
+import { showsInDateTab, resolveTheme, isOverdue, formatTimeCell, shouldOpenSheetOnKey } from './view-logic.mjs';
 import { icon } from './icons.mjs';
 import { getAuth, signInAnonymously, onAuthStateChanged, GoogleAuthProvider, signInWithRedirect, getRedirectResult, signInWithPopup, signOut } from 'https://www.gstatic.com/firebasejs/12.15.0/firebase-auth.js';
 
@@ -644,7 +652,56 @@ function commitTaskRename(taskId, nextText) {
     renderTasks();
 }
 
+const TAB_LABELS = {
+    today: 'Today',
+    tomorrow: 'Tomorrow',
+    next3: 'Next 3 days',
+    nextMonth: 'Next month',
+    later: 'Later',
+    repeating: 'Repeating',
+    completed: 'Completed',
+};
+
 function renderTasks() {
+    closeMenu({ restoreFocus: false });
+    renderList();
+    updateTabCounts();
+    updateDayHeading();
+}
+
+function updateTabCounts() {
+    const savedTab = activeTab;
+    const savedQuery = searchQuery;
+    try {
+        searchQuery = '';
+        document.querySelectorAll('[data-count-for]').forEach((element) => {
+            activeTab = element.dataset.countFor;
+            const count = activeTab === 'completed' ? 0 : getItemsForTab().filter((item) => !item.completed).length;
+            element.textContent = count > 0 ? String(count) : '';
+        });
+    } finally {
+        activeTab = savedTab;
+        searchQuery = savedQuery;
+    }
+}
+
+function updateDayHeading() {
+    dayDate.textContent = new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+    dayTitle.textContent = TAB_LABELS[activeTab] || '';
+
+    const rows = Array.from(todoList.querySelectorAll('.row'));
+    const done = rows.filter((row) => row.classList.contains('row--done')).length;
+    const open = rows.length - done;
+    if (activeTab === 'completed') {
+        dayCount.textContent = `${done} done`;
+    } else if (activeTab === 'repeating') {
+        dayCount.textContent = `${rows.length} active`;
+    } else {
+        dayCount.textContent = done > 0 ? `${open} open · ${done} done` : `${open} open`;
+    }
+}
+
+function renderList() {
     expireStoppedRepeats();
     todoList.innerHTML = '';
 
@@ -1191,11 +1248,9 @@ function setActiveTab(tabName) {
     tabButtons.forEach((button) => {
         button.classList.toggle('active', button.dataset.tab === tabName);
     });
-    searchToolbar.classList.toggle('hidden', tabName !== 'completed');
-    if (tabName !== 'completed') {
-        searchQuery = '';
-        searchInput.value = '';
-    }
+    repeatEditorTaskId = null;
+    searchQuery = '';
+    searchInput.value = '';
     renderTasks();
 }
 
@@ -1315,6 +1370,28 @@ repeatWeekdayField.addEventListener('click', (event) => {
     });
 });
 
+function toggleSearch(show = searchToolbar.classList.contains('hidden')) {
+    searchToolbar.classList.toggle('hidden', !show);
+    searchButton.setAttribute('aria-expanded', String(show));
+    if (show) {
+        searchInput.focus();
+    } else if (searchQuery) {
+        searchQuery = '';
+        searchInput.value = '';
+        renderTasks();
+    }
+}
+
+searchButton.addEventListener('click', () => toggleSearch());
+
+searchInput.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+        event.preventDefault();
+        toggleSearch(false);
+        searchButton.focus();
+    }
+});
+
 searchInput.addEventListener('input', (event) => {
     searchQuery = event.target.value;
     renderTasks();
@@ -1371,7 +1448,36 @@ todoForm.addEventListener('submit', (event) => {
     updateNoDueState();
     updateRepeatVisibility();
     updateFormMode();
+    closeSheet();
+});
+
+function openSheet() {
+    if (addSheet.open) return;
+    closeMenu({ restoreFocus: false });
+    updateFormMode();
+    addSheet.showModal();
     todoInput.focus();
+}
+
+function closeSheet() {
+    if (addSheet.open) addSheet.close();
+}
+
+newItemButton.addEventListener('click', openSheet);
+sheetCancelButton.addEventListener('click', closeSheet);
+
+// A click that lands on the dialog element itself is a click on the backdrop.
+addSheet.addEventListener('click', (event) => {
+    if (event.target === addSheet) closeSheet();
+});
+
+addSheet.addEventListener('close', () => newItemButton.focus());
+
+document.addEventListener('keydown', (event) => {
+    if (appShell.classList.contains('hidden') || addSheet.open || openMenuState) return;
+    if (!shouldOpenSheetOnKey(event)) return;
+    event.preventDefault();
+    openSheet();
 });
 
 // Helper wrapper to handle popup data exactly like a redirect return
@@ -1412,15 +1518,28 @@ if (document.getElementById('sign-in-button')) {
     });
 }
 
-// document.getElementById('sign-out-button').addEventListener('click', async () => {
-//     try {
-//         await signOut(auth);
-//         document.querySelector('.sign-in-shell').classList.remove('hidden');
-//         document.querySelector('.app-shell').classList.add('hidden');
-//     } catch (error) {
-//         console.error('Error signing out:', error);
-//     }
-// });
+async function signOutUser() {
+    try {
+        await signOut(auth);
+    } catch (error) {
+        console.error('Error signing out:', error);
+        return;
+    }
+    closeSheet();
+    toggleSearch(false);
+    tasks = [];
+    editingTaskId = null;
+    setActiveTab('today');
+    appShell.classList.add('hidden');
+    signInShell.classList.remove('hidden');
+}
+
+accountButton.addEventListener('click', () => openMenu(accountButton, [
+    { label: 'Export JSON', icon: 'download', onSelect: exportTasks },
+    { label: 'Import JSON', icon: 'upload', onSelect: importTasks },
+    'sep',
+    { label: 'Sign out', icon: 'sign-out', onSelect: signOutUser },
+]));
 
 const THEME_KEY = 'todo-theme';
 
