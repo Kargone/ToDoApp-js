@@ -79,7 +79,7 @@ let tasks = [];
 // Import the functions you need from the SDKs you need
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-app.js";
 import { getDatabase, ref, set, get, child } from 'https://www.gstatic.com/firebasejs/12.15.0/firebase-database.js';
-import { showsInDateTab } from './view-logic.mjs';
+import { showsInDateTab, resolveTheme } from './view-logic.mjs';
 import { getAuth, signInAnonymously, onAuthStateChanged, GoogleAuthProvider, signInWithRedirect, getRedirectResult, signInWithPopup, signOut } from 'https://www.gstatic.com/firebasejs/12.15.0/firebase-auth.js';
 
 const firebaseConfig = {
@@ -1286,6 +1286,32 @@ if (document.getElementById('sign-in-button')) {
 //         console.error('Error signing out:', error);
 //     }
 // });
+
+const THEME_KEY = 'todo-theme';
+
+function applyTheme(theme, { persist = true } = {}) {
+    document.documentElement.dataset.theme = theme;
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', theme === 'dark' ? '#0E0E10' : '#FFFFFF');
+    if (persist) {
+        try {
+            localStorage.setItem(THEME_KEY, theme);
+        } catch (error) {
+            // Storage can be unavailable (private mode); the theme still applies for this visit.
+        }
+    }
+    document.querySelectorAll('[data-theme-toggle]').forEach((button) => {
+        button.setAttribute('aria-label', theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme');
+    });
+}
+
+document.querySelectorAll('[data-theme-toggle]').forEach((button) => {
+    button.addEventListener('click', () => {
+        applyTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark');
+    });
+});
+
+// Only an explicit toggle is saved, so first-time visitors keep following the system setting.
+applyTheme(resolveTheme(document.documentElement.dataset.theme, false), { persist: false });
 
 async function initialize() {
     dueDateInput.value = getTodayIso();

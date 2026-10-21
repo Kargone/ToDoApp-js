@@ -3,8 +3,20 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <meta name="theme-color" content="#090f1b" />
-  <title>ToDo App</title>
+  <meta name="theme-color" content="#FFFFFF" />
+  <title>ToDo</title>
+  <script>
+    // Apply the saved or system theme before first paint (mirrors resolveTheme in view-logic.mjs).
+    (function () {
+      var prefersDark = false;
+      var stored = null;
+      try { prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches; } catch (e) {}
+      try { stored = localStorage.getItem('todo-theme'); } catch (e) {}
+      var theme = stored === 'light' || stored === 'dark' ? stored : (prefersDark ? 'dark' : 'light');
+      document.documentElement.dataset.theme = theme;
+      document.querySelector('meta[name="theme-color"]').setAttribute('content', theme === 'dark' ? '#0E0E10' : '#FFFFFF');
+    })();
+  </script>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
