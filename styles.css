@@ -1028,6 +1028,12 @@ svg {
   border-radius: var(--r-md);
 }
 
+.repeat-editor-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
 .repeat-editor-footer {
   display: flex;
   justify-content: space-between;

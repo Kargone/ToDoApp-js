@@ -71,6 +71,7 @@ function initializeFirebase() {
 
 let searchQuery = '';
 let editingTaskId = null;
+let repeatEditorTaskId = null;
 
 const STORAGE_KEY = 'todoapp-js-tasks';
 let activeTab = 'today';
@@ -79,7 +80,8 @@ let tasks = [];
 // Import the functions you need from the SDKs you need
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-app.js";
 import { getDatabase, ref, set, get, child } from 'https://www.gstatic.com/firebasejs/12.15.0/firebase-database.js';
-import { showsInDateTab, resolveTheme } from './view-logic.mjs';
+import { showsInDateTab, resolveTheme, isOverdue, formatTimeCell } from './view-logic.mjs';
+import { icon } from './icons.mjs';
 import { getAuth, signInAnonymously, onAuthStateChanged, GoogleAuthProvider, signInWithRedirect, getRedirectResult, signInWithPopup, signOut } from 'https://www.gstatic.com/firebasejs/12.15.0/firebase-auth.js';
 
 const firebaseConfig = {
@@ -358,12 +360,8 @@ function getCategory(item) {
 }
 
 function createRepeatEditor(task) {
-    const editor = document.createElement('details');
+    const editor = document.createElement('div');
     editor.className = 'repeat-editor';
-
-    const summary = document.createElement('summary');
-    summary.textContent = 'Edit repeat rule';
-    editor.appendChild(summary);
 
     const content = document.createElement('div');
     content.className = 'repeat-editor-content';
@@ -372,7 +370,7 @@ function createRepeatEditor(task) {
     intervalField.className = 'field';
     intervalField.innerHTML = `
     <label>Repeat every</label>
-    <div class="repeat-repeat-row">
+    <div class="field-inline">
       <input type="number" min="1" class="edit-repeat-interval" value="${task.repeatRule.interval}" />
       <select class="edit-repeat-unit">
         <option value="day">day(s)</option>
@@ -404,7 +402,7 @@ function createRepeatEditor(task) {
     const selectedWeekdays = task.repeatRule.daysOfWeek ?? [0, 1, 2, 3, 4, 5, 6];
     weekdayField.innerHTML = `
     <label>Repeat on</label>
-    <div class="weekday-grid weekday-pill-grid">
+    <div class="weekday-pill-grid">
       ${[0, 1, 2, 3, 4, 5, 6]
             .map(
                 (day) =>
@@ -426,7 +424,7 @@ function createRepeatEditor(task) {
 
     const saveButton = document.createElement('button');
     saveButton.type = 'button';
-    saveButton.className = 'action-button';
+    saveButton.className = 'btn';
     saveButton.textContent = 'Save repeat rule';
     saveButton.addEventListener('click', () => {
         const intervalValue = Number(intervalField.querySelector('.edit-repeat-interval').value) || 1;
@@ -446,22 +444,23 @@ function createRepeatEditor(task) {
             monthWeekdays: task.repeatRule.monthWeekdays || [task.repeatRule.monthWeekday || 0],
         };
 
+        repeatEditorTaskId = null;
         saveTasks();
         renderTasks();
-        editor.open = false;
     });
 
     const removeButton = document.createElement('button');
     removeButton.type = 'button';
-    removeButton.className = 'action-button danger';
+    removeButton.className = 'btn btn-ghost btn-danger-text';
     removeButton.textContent = 'Remove repeat rule';
     removeButton.addEventListener('click', () => {
+        repeatEditorTaskId = null;
         task.repeatRule = null;
         saveTasks();
         renderTasks();
     });
 
-    footer.append(saveButton, removeButton);
+    footer.append(removeButton, saveButton);
     content.append(intervalField, stopField, timeField, weekdayField, monthdayField, footer);
     editor.appendChild(content);
 
@@ -551,7 +550,7 @@ function getItemsForTab() {
     } else {
         const todayIso = getTodayIso();
         const baseItems = tasks.filter((item) => {
-            if (!item.completed) return getCategory(item) === activeTab;
+            if (!item.completed || activeTab === 'completed') return getCategory(item) === activeTab;
             return showsInDateTab(item, todayIso) && getCategory({ ...item, completed: false }) === activeTab;
         });
 
@@ -671,160 +670,295 @@ function renderTasks() {
 
     emptyState.style.display = 'none';
 
+    if (activeTab !== 'completed') {
+        // Struck-through items sink below the open ones (stable sort keeps time order within each group).
+        visibleTasks.sort((a, b) => Number(Boolean(a.completed)) - Number(Boolean(b.completed)));
+    }
+
+    const now = new Date();
+
     visibleTasks.forEach((task) => {
         if (activeTab === 'repeating' && task.repeatRule && !task.repeatRule.interval) return;
-
-        const listItem = document.createElement('li');
-        listItem.className = `todo-item${task.completed ? ' completed' : ''}${task.isVirtual ? ' virtual' : ''}${isItemUrgent(task) ? ' urgent' : ''}`;
-
-        const meta = document.createElement('div');
-        const isEditingTask = editingTaskId === task.id;
-
-        if (isEditingTask) {
-            const taskTitleInput = document.createElement('input');
-            taskTitleInput.type = 'text';
-            taskTitleInput.className = `task-title task-title-input${task.completed ? ' completed' : ''}`;
-            taskTitleInput.value = task.text;
-            taskTitleInput.setAttribute('aria-label', 'Edit item name');
-            taskTitleInput.addEventListener('keydown', (event) => {
-                if (event.key === 'Enter') {
-                    event.preventDefault();
-                    commitTaskRename(task.id, taskTitleInput.value);
-                }
-
-                if (event.key === 'Escape') {
-                    event.preventDefault();
-                    cancelTaskRename();
-                }
-            });
-            taskTitleInput.addEventListener('blur', () => {
-                if (editingTaskId === task.id) {
-                    commitTaskRename(task.id, taskTitleInput.value);
-                }
-            });
-            meta.appendChild(taskTitleInput);
-            requestAnimationFrame(() => {
-                if (editingTaskId === task.id) {
-                    taskTitleInput.focus();
-                    taskTitleInput.select();
-                }
-            });
-        } else {
-            const taskTitle = document.createElement('p');
-            taskTitle.className = `task-title${task.completed ? ' completed' : ''}`;
-            taskTitle.textContent = task.text;
-            if (canRenameTask(task)) {
-                taskTitle.title = 'Double-click to edit';
-                taskTitle.addEventListener('dblclick', () => beginTaskRename(task.id));
-            }
-            meta.appendChild(taskTitle);
-        }
-
-        const taskMeta = document.createElement('div');
-        taskMeta.className = 'todo-meta';
-
-        const dueBadge = document.createElement('span');
-        dueBadge.className = 'badge due';
-        dueBadge.textContent = formatDueLabel(task);
-        taskMeta.appendChild(dueBadge);
-
-        if (task.repeatRule) {
-            const repeatBadge = document.createElement('span');
-            repeatBadge.className = 'badge repeat';
-            repeatBadge.textContent = formatRepeatLabel(task.repeatRule);
-            taskMeta.appendChild(repeatBadge);
-        }
-
-        if (task.completed) {
-            const completeBadge = document.createElement('span');
-            completeBadge.className = 'badge completed';
-            completeBadge.textContent = 'Completed';
-            taskMeta.appendChild(completeBadge);
-        }
-
-        if (task.isVirtual) {
-            const upcomingBadge = document.createElement('span');
-            upcomingBadge.className = 'badge completed';
-            upcomingBadge.textContent = 'Upcoming';
-            taskMeta.appendChild(upcomingBadge);
-        }
-
-        meta.appendChild(taskMeta);
-
-        if (task.noDue && !task.isVirtual) {
-            const sectionField = document.createElement('div');
-            sectionField.className = 'field no-due-switch';
-            sectionField.innerHTML = `
-        <label>Show in</label>
-        <select class="no-due-section-select">
-          <option value="today" ${task.section === 'today' ? 'selected' : ''}>Today</option>
-          <option value="later" ${task.section === 'later' ? 'selected' : ''}>Later</option>
-        </select>
-      `;
-            const sectionSelect = sectionField.querySelector('.no-due-section-select');
-            sectionSelect.addEventListener('change', (event) => {
-                task.section = event.target.value;
-                saveTasks();
-                renderTasks();
-            });
-            meta.appendChild(sectionField);
-        }
-
-        if (activeTab === 'repeating' && task.repeatRule && !task.isVirtual && task.repeatRule.interval) {
-            meta.appendChild(createRepeatEditor(task));
-        }
-
-        if (!task.isVirtual) {
-            const actions = document.createElement('div');
-            actions.className = 'todo-actions';
-
-            if (activeTab === 'repeating') {
-                const deleteButton = document.createElement('button');
-                deleteButton.type = 'button';
-                deleteButton.className = 'action-button danger';
-                deleteButton.textContent = 'Delete';
-                deleteButton.addEventListener('click', () => removeTask(task.id));
-                actions.append(deleteButton);
-            } else {
-                const toggleButton = document.createElement('button');
-                toggleButton.type = 'button';
-                toggleButton.className = 'action-button';
-                toggleButton.textContent = task.completed ? 'Mark active' : 'Mark complete';
-                toggleButton.addEventListener('click', () => toggleTask(task.id));
-
-                const deleteButton = document.createElement('button');
-                deleteButton.type = 'button';
-                deleteButton.className = 'action-button danger';
-                deleteButton.textContent = 'Delete';
-                deleteButton.addEventListener('click', () => removeTask(task.id));
-
-                actions.append(toggleButton, deleteButton);
-
-                if (!task.noDue) {
-                    const postponeActions = document.createElement('div');
-                    postponeActions.className = 'quick-actions';
-
-                    [{ label: '+2h', days: 1 / 12 }, { label: '+1d', days: 1 }, { label: '+2d', days: 2 }, { label: '+3d', days: 3 }].forEach((option) => {
-                        const button = document.createElement('button');
-                        button.type = 'button';
-                        button.className = 'quick-button';
-                        button.textContent = option.label;
-                        button.addEventListener('click', () => postponeTask(task.id, option.days));
-                        postponeActions.appendChild(button);
-                    });
-
-                    actions.append(postponeActions);
-                }
-            }
-
-            listItem.append(meta, actions);
-        } else {
-            listItem.append(meta);
-        }
-
-        todoList.appendChild(listItem);
+        todoList.appendChild(createTaskRow(task, now));
     });
 }
+
+function createTaskRow(task, now) {
+    const row = document.createElement('li');
+    row.className = `row${task.completed ? ' row--done' : ''}${task.isVirtual ? ' row--virtual' : ''}`;
+
+    row.appendChild(createRowLead(task));
+
+    const body = document.createElement('div');
+    body.className = 'row__body';
+    body.appendChild(createRowTitle(task));
+
+    const metaParts = [];
+    if (task.repeatRule) metaParts.push(`${icon('repeat', 'icon-sm')}<span>${escapeHtml(formatRepeatLabel(task.repeatRule))}</span>`);
+    if (task.type === 'event' && task.endTime) metaParts.push(`<span>until ${escapeHtml(task.endTime)}</span>`);
+    if (metaParts.length) {
+        const meta = document.createElement('div');
+        meta.className = 'row__meta';
+        meta.innerHTML = metaParts.join('<span aria-hidden="true">·</span>');
+        body.appendChild(meta);
+    }
+    row.appendChild(body);
+
+    const time = document.createElement('span');
+    time.className = 'row__time';
+    time.textContent = formatTimeCell(task, now);
+    time.title = formatDueLabel(task);
+    if (isOverdue(task, now)) {
+        time.classList.add('row__time--late');
+    } else if (isItemUrgent(task)) {
+        time.classList.add('row__time--soon');
+    }
+    row.appendChild(time);
+
+    row.appendChild(createRowTrail(task));
+
+    if (activeTab === 'repeating' && repeatEditorTaskId === task.id && task.repeatRule?.interval) {
+        row.classList.add('has-editor');
+        const editorWrap = document.createElement('div');
+        editorWrap.className = 'row__editor';
+        editorWrap.appendChild(createRepeatEditor(task));
+        row.appendChild(editorWrap);
+    }
+
+    return row;
+}
+
+function createRowLead(task) {
+    if (activeTab === 'repeating') {
+        const lead = document.createElement('span');
+        lead.className = 'row__lead';
+        lead.innerHTML = icon('repeat');
+        return lead;
+    }
+
+    const checkbox = document.createElement('button');
+    checkbox.type = 'button';
+    checkbox.className = 'chk';
+    checkbox.innerHTML = icon('check');
+    if (task.isVirtual) {
+        checkbox.disabled = true;
+        checkbox.setAttribute('aria-label', 'Upcoming occurrence');
+    } else {
+        checkbox.setAttribute('aria-label', task.completed ? 'Mark not complete' : 'Mark complete');
+        checkbox.setAttribute('aria-pressed', String(Boolean(task.completed)));
+        checkbox.addEventListener('click', () => toggleTask(task.id));
+    }
+    return checkbox;
+}
+
+function createRowTitle(task) {
+    if (editingTaskId === task.id) {
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'row__title-input';
+        input.value = task.text;
+        input.setAttribute('aria-label', 'Rename item');
+        input.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                commitTaskRename(task.id, input.value);
+            }
+
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                cancelTaskRename();
+            }
+        });
+        input.addEventListener('blur', () => {
+            if (editingTaskId === task.id) {
+                commitTaskRename(task.id, input.value);
+            }
+        });
+        requestAnimationFrame(() => {
+            if (editingTaskId === task.id) {
+                input.focus();
+                input.select();
+            }
+        });
+        return input;
+    }
+
+    const title = document.createElement('p');
+    title.className = 'row__title';
+    title.textContent = task.text;
+    if (task.type === 'event') {
+        const tag = document.createElement('span');
+        tag.className = 'tag';
+        tag.textContent = 'EVENT';
+        title.appendChild(tag);
+    }
+    if (canRenameTask(task)) {
+        title.title = 'Double-click to rename';
+        title.addEventListener('dblclick', () => beginTaskRename(task.id));
+    }
+    return title;
+}
+
+function createRowTrail(task) {
+    if (task.isVirtual) {
+        const spacer = document.createElement('span');
+        spacer.className = 'row__trail';
+        return spacer;
+    }
+
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'icon-btn icon-btn--ghost row__trail';
+
+    if (task.completed && activeTab !== 'completed') {
+        button.innerHTML = icon('x');
+        button.setAttribute('aria-label', 'Remove from list');
+        button.addEventListener('click', () => dismissTask(task.id));
+        return button;
+    }
+
+    button.innerHTML = icon('more');
+    button.setAttribute('aria-label', 'More actions');
+    button.setAttribute('aria-haspopup', 'menu');
+    button.setAttribute('aria-expanded', 'false');
+    button.addEventListener('click', () => openMenu(button, getRowMenuItems(task)));
+    return button;
+}
+
+function getRowMenuItems(task) {
+    const deleteItem = { label: 'Delete', icon: 'trash', danger: true, onSelect: () => removeTask(task.id) };
+
+    if (activeTab === 'repeating') {
+        const isOpen = repeatEditorTaskId === task.id;
+        return [
+            {
+                label: isOpen ? 'Close repeat editor' : 'Edit repeat rule',
+                icon: 'edit',
+                onSelect: () => {
+                    repeatEditorTaskId = isOpen ? null : task.id;
+                    renderTasks();
+                },
+            },
+            'sep',
+            deleteItem,
+        ];
+    }
+
+    if (activeTab === 'completed') {
+        return [{ label: 'Mark active', icon: 'undo', onSelect: () => toggleTask(task.id) }, 'sep', deleteItem];
+    }
+
+    if (task.noDue) {
+        const setSection = (section) => () => {
+            task.section = section;
+            saveTasks();
+            renderTasks();
+        };
+        return [
+            { label: 'Show in Today', icon: 'today', onSelect: setSection('today') },
+            { label: 'Show in Later', icon: 'later', onSelect: setSection('later') },
+            'sep',
+            deleteItem,
+        ];
+    }
+
+    return [
+        { label: 'Later today', icon: 'clock', hint: '+2h', onSelect: () => postponeTask(task.id, 1 / 12) },
+        { label: 'Tomorrow', icon: 'calendar', hint: '+1d', onSelect: () => postponeTask(task.id, 1) },
+        { label: 'In 2 days', icon: 'arrow-right', hint: '+2d', onSelect: () => postponeTask(task.id, 2) },
+        { label: 'In 3 days', icon: 'arrow-skip', hint: '+3d', onSelect: () => postponeTask(task.id, 3) },
+        'sep',
+        deleteItem,
+    ];
+}
+
+function escapeHtml(value) {
+    return String(value).replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
+}
+
+let openMenuState = null;
+
+function openMenu(anchor, items) {
+    const reopeningSame = openMenuState?.anchor === anchor;
+    closeMenu({ restoreFocus: false });
+    if (reopeningSame) return;
+
+    const menu = document.createElement('div');
+    menu.className = 'menu';
+    menu.setAttribute('role', 'menu');
+
+    items.forEach((item) => {
+        if (item === 'sep') {
+            const sep = document.createElement('div');
+            sep.className = 'menu__sep';
+            sep.setAttribute('role', 'separator');
+            menu.appendChild(sep);
+            return;
+        }
+
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = `menu__item${item.danger ? ' menu__item--danger' : ''}`;
+        button.setAttribute('role', 'menuitem');
+        button.innerHTML = `${icon(item.icon)}<span>${escapeHtml(item.label)}</span>${item.hint ? `<span class="menu__hint">${escapeHtml(item.hint)}</span>` : ''}`;
+        button.addEventListener('click', () => {
+            closeMenu();
+            item.onSelect();
+        });
+        menu.appendChild(button);
+    });
+
+    document.body.appendChild(menu);
+
+    const rect = anchor.getBoundingClientRect();
+    const menuRect = menu.getBoundingClientRect();
+    const left = Math.max(8, Math.min(rect.right - menuRect.width, window.innerWidth - menuRect.width - 8));
+    const below = rect.bottom + 4;
+    const top = below + menuRect.height > window.innerHeight - 8 ? Math.max(8, rect.top - menuRect.height - 4) : below;
+    menu.style.left = `${left}px`;
+    menu.style.top = `${top}px`;
+
+    anchor.setAttribute('aria-expanded', 'true');
+    openMenuState = { menu, anchor };
+    menu.querySelector('.menu__item')?.focus();
+}
+
+function closeMenu({ restoreFocus = true } = {}) {
+    if (!openMenuState) return;
+    const { menu, anchor } = openMenuState;
+    openMenuState = null;
+    menu.remove();
+    anchor.setAttribute('aria-expanded', 'false');
+    if (restoreFocus && anchor.isConnected) anchor.focus();
+}
+
+document.addEventListener('pointerdown', (event) => {
+    if (!openMenuState) return;
+    if (openMenuState.menu.contains(event.target) || openMenuState.anchor.contains(event.target)) return;
+    closeMenu({ restoreFocus: false });
+});
+
+document.addEventListener('keydown', (event) => {
+    if (!openMenuState) return;
+    const items = Array.from(openMenuState.menu.querySelectorAll('.menu__item'));
+    const index = items.indexOf(document.activeElement);
+
+    if (event.key === 'Escape') {
+        event.preventDefault();
+        closeMenu();
+    } else if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        items[(index + 1) % items.length]?.focus();
+    } else if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        items[(index - 1 + items.length) % items.length]?.focus();
+    } else if (event.key === 'Tab') {
+        closeMenu({ restoreFocus: false });
+    }
+});
+
+window.addEventListener('resize', () => closeMenu({ restoreFocus: false }));
+window.addEventListener('scroll', () => closeMenu({ restoreFocus: false }), true);
 
 function addTask(text) {
     const itemType = itemTypeSelect.value;
