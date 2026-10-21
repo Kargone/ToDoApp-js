@@ -24,19 +24,19 @@ const repeatMonthWeekField = document.getElementById('repeat-month-week-field');
 const repeatMonthWeekdayField = document.getElementById('repeat-month-weekday-field');
 const repeatMonthWeekButtons = repeatMonthWeekField.querySelectorAll('[data-week]');
 const repeatMonthWeekdayButtons = repeatMonthWeekdayField.querySelectorAll('[data-day]');
-const advancedOptions = document.getElementById('advanced-options');
 const taskSectionRow = document.getElementById('task-section-row');
 const todoList = document.getElementById('todo-list');
 const emptyState = document.getElementById('empty-state');
 const searchToolbar = document.getElementById('search-toolbar');
 const searchInput = document.getElementById('search-input');
-const exportJsonButton = document.getElementById('export-json');
-const importJsonButton = document.getElementById('import-json');
 const tabButtons = document.querySelectorAll('.tab');
 const taskFields = document.querySelectorAll('.item-task');
 const eventFields = document.querySelectorAll('.item-event');
 const revealTimeRow = document.getElementById('repeat-time-row');
-const submitRow = document.querySelector('.submit-row');
+const signInShell = document.getElementById('sign-in-shell');
+const appShell = document.getElementById('app-shell');
+const typeTaskButton = document.getElementById('type-task');
+const typeEventButton = document.getElementById('type-event');
 
 function initializeFirebase() {
     onAuthStateChanged(auth, (user) => {
@@ -45,8 +45,8 @@ function initializeFirebase() {
             currentUser = user;
             firebaseDb = getDatabase(app);
             // Update your UI or redirect to a dashboard here
-            document.querySelector('.sign-in-shell').classList.add('hidden');
-            document.querySelector('.app-shell').classList.remove('hidden');
+            signInShell.classList.add('hidden');
+            appShell.classList.remove('hidden');
             initialize();
             loadRemoteTasks();
         } else {
@@ -1127,7 +1127,16 @@ function updateFormMode() {
     });
     taskSectionRow.classList.toggle('hidden', isEvent);
     revealTimeRow.classList.toggle('hidden', isEvent);
+    typeTaskButton.setAttribute('aria-pressed', String(!isEvent));
+    typeEventButton.setAttribute('aria-pressed', String(isEvent));
 }
+
+[typeTaskButton, typeEventButton].forEach((button) => {
+    button.addEventListener('click', () => {
+        itemTypeSelect.value = button === typeEventButton ? 'event' : 'task';
+        itemTypeSelect.dispatchEvent(new Event('change'));
+    });
+});
 
 tabButtons.forEach((button) => {
     button.addEventListener('click', () => setActiveTab(button.dataset.tab));
@@ -1177,16 +1186,16 @@ searchInput.addEventListener('input', (event) => {
     renderTasks();
 });
 
-exportJsonButton.addEventListener('click', async () => {
+async function exportTasks() {
     try {
         await navigator.clipboard.writeText(JSON.stringify(tasks, null, 2));
         alert('Tasks copied to clipboard');
     } catch (error) {
         alert('Unable to copy to clipboard. Please allow clipboard access or copy manually.');
     }
-});
+}
 
-importJsonButton.addEventListener('click', async () => {
+async function importTasks() {
     try {
         const clipboardText = await navigator.clipboard.readText();
         const imported = JSON.parse(clipboardText);
@@ -1198,13 +1207,7 @@ importJsonButton.addEventListener('click', async () => {
     } catch (error) {
         alert('Failed to import JSON. Make sure valid task JSON is on your clipboard.');
     }
-});
-
-todoInput.addEventListener('input', () => {
-    const hasText = todoInput.value.trim() !== '';
-    advancedOptions.classList.toggle('hidden', !hasText);
-    submitRow.classList.toggle('hidden', !hasText);
-});
+}
 
 todoForm.addEventListener('submit', (event) => {
     event.preventDefault();
@@ -1231,8 +1234,6 @@ todoForm.addEventListener('submit', (event) => {
     repeatMonthWeekdayButtons.forEach((button) => button.classList.toggle('selected', button.dataset.day === '0'));
     taskSectionSelect.value = 'today';
     noDueCheckbox.checked = false;
-    advancedOptions.classList.add('hidden');
-    submitRow.classList.add('hidden');
     updateNoDueState();
     updateRepeatVisibility();
     updateFormMode();
@@ -1268,8 +1269,8 @@ if (document.getElementById('sign-in-button')) {
             //     await signInWithRedirect(auth, provider);
             // }
             if (user) {
-                document.querySelector('.sign-in-shell').classList.add('hidden');
-                document.querySelector('.app-shell').classList.remove('hidden');
+                signInShell.classList.add('hidden');
+                appShell.classList.remove('hidden');
             }
         } catch (error) {
             console.error('Error signing in with Google:', error);
@@ -1320,7 +1321,6 @@ async function initialize() {
     updateFormMode();
     updateNoDueState();
     updateRepeatVisibility();
-    submitRow.classList.add('hidden');
     setActiveTab(activeTab);
 }
 
