@@ -32,7 +32,7 @@ test('formatTimeCell', () => {
     assert.equal(formatTimeCell({ dueDate: '2026-10-26' }, now), 'MON');
     assert.equal(formatTimeCell({ dueDate: '2026-10-27' }, now), 'OCT 27');
     assert.equal(formatTimeCell({ dueDate: '2026-10-13' }, now), 'OCT 13');
-    assert.equal(formatTimeCell({ dueDate: '2026-10-20' }, now), '—');
+    assert.equal(formatTimeCell({ dueDate: '2026-10-20' }, now), 'TUE');
     assert.equal(formatTimeCell({ noDue: true }, now), '—');
 });
 

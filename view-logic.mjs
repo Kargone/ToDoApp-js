@@ -43,8 +43,8 @@ export function formatTimeCell(item, now) {
     if (item.noDue || !dateIso) return '—';
 
     const offset = dayOffset(dateIso, now);
-    if (offset === 0) {
-        return itemTime(item) || '—';
+    if (offset === 0 && itemTime(item)) {
+        return itemTime(item);
     }
 
     const [year, month, day] = dateIso.split('-').map(Number);

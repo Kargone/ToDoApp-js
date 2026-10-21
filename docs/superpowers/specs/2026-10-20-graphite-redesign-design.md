@@ -283,9 +283,9 @@ Decided by Claude, not the user, after the builder review:
   items already land in Today via `getCategory`. The existing "due within 4
   hours" cue (`isItemUrgent`, `.urgent`) stays, shown as the time in `--fg`
   weight 600 with no color.
-- **Time column format.** If the item is today, show `HH:MM` (24h, matching the
-  mockups). Within ±6 days, show the weekday (`MON`). Otherwise show month and
-  day (`OCT 28`). With no time and no date, show `—`. The column is 52px wide.
+- **Time column format.** If the item is today and has a time, show `HH:MM` (24h, matching the
+  mockups). Today without a time, and anything within ±6 days, shows the weekday (`TUE`, `MON`) — changed at the user's request after review. Otherwise show month and
+  day (`OCT 28`). With no due date, show `—`. The column is 52px wide.
   The full `formatDueLabel` text appears as the cell's `title` tooltip so no
   information is lost.
 - **Repeating tab rows have no checkbox,** matching today's behavior (there is
