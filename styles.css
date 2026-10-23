@@ -644,17 +644,58 @@ svg {
   display: none;
 }
 
+/* ---------- Project tree ---------- */
+
+.list--tree .row {
+  padding-left: calc(8px + var(--depth, 0) * 20px);
+}
+
+.project-head__toggle {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  min-height: 32px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--fg);
+  font-size: 14px;
+  font-weight: 600;
+  text-align: left;
+}
+
+.project-head__toggle .row__lead svg {
+  width: 14px;
+  height: 14px;
+  transition: transform 120ms ease;
+}
+
+.project-head__toggle[aria-expanded="true"] .row__lead svg {
+  transform: rotate(90deg);
+}
+
+.project-head__toggle:hover .row__lead {
+  color: var(--fg);
+}
+
+.project-head__name {
+  overflow-wrap: anywhere;
+}
+
 /* ---------- Floating new-item ---------- */
 
 .list-actions {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 12px;
   margin-top: 14px;
 }
 
 .list-actions__hint {
+  margin-right: auto;
   color: var(--muted);
   font-size: 12px;
 }
@@ -668,7 +709,7 @@ svg {
     display: none;
   }
 
-  .list-actions .btn {
+  .list-actions .btn:not(.btn-outline) {
     position: fixed;
     right: 16px;
     bottom: calc(16px + env(safe-area-inset-bottom));
@@ -690,6 +731,8 @@ svg {
   border: 1px solid var(--line);
   border-radius: var(--r-md);
   background: var(--bg);
+  max-height: min(360px, calc(100vh - 16px));
+  overflow-y: auto;
   box-shadow: var(--float-shadow);
   animation: menu-in 120ms ease-out;
 }

@@ -86,6 +86,7 @@
         <button type="button" class="tab" role="tab" data-tab="next3">Next 3 days<span class="tab__count" data-count-for="next3"></span></button>
         <button type="button" class="tab" role="tab" data-tab="nextMonth">Next month<span class="tab__count" data-count-for="nextMonth"></span></button>
         <button type="button" class="tab" role="tab" data-tab="later">Later<span class="tab__count" data-count-for="later"></span></button>
+        <button type="button" class="tab" role="tab" data-tab="projects">Projects<span class="tab__count" data-count-for="projects"></span></button>
         <button type="button" class="tab" role="tab" data-tab="repeating">Repeating<span class="tab__count" data-count-for="repeating"></span></button>
         <button type="button" class="tab" role="tab" data-tab="completed">Completed<span class="tab__count" data-count-for="completed"></span></button>
       </nav>
@@ -95,6 +96,10 @@
 
       <div class="list-actions">
         <span class="list-actions__hint">Press<span class="kbd">N</span>to add</span>
+        <button id="new-project-button" type="button" class="btn btn-outline hidden">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 7a2 2 0 0 1 2-2h4l2 2.5h7a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/></svg>
+          New project
+        </button>
         <button id="new-item-button" type="button" class="btn">
           <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
           New item
@@ -162,6 +167,19 @@
             <option value="later">Later</option>
           </select>
         </div>
+      </div>
+
+      <div id="project-row" class="hidden">
+        <div class="field">
+          <label for="project-select">Project</label>
+          <select id="project-select">
+            <option value="">No project</option>
+          </select>
+        </div>
+        <label class="switch hidden" id="date-tabs-switch" style="margin-top: 10px">
+          Also show in date tabs
+          <input id="in-date-tabs" type="checkbox" />
+        </label>
       </div>
 
       <div class="sheet__divider"></div>

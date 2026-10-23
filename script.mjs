@@ -45,6 +45,11 @@ const sheetCancelButton = document.getElementById('sheet-cancel');
 const dayDate = document.getElementById('day-date');
 const dayTitle = document.getElementById('day-title');
 const dayCount = document.getElementById('day-count');
+const newProjectButton = document.getElementById('new-project-button');
+const projectRow = document.getElementById('project-row');
+const projectSelect = document.getElementById('project-select');
+const dateTabsSwitch = document.getElementById('date-tabs-switch');
+const inDateTabsCheckbox = document.getElementById('in-date-tabs');
 
 function initializeFirebase() {
     onAuthStateChanged(auth, (user) => {
@@ -84,12 +89,14 @@ let repeatEditorTaskId = null;
 const STORAGE_KEY = 'todoapp-js-tasks';
 let activeTab = 'today';
 let tasks = [];
+let projects = [];
 
 // Import the functions you need from the SDKs you need
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-app.js";
 import { getDatabase, ref, set, get, child } from 'https://www.gstatic.com/firebasejs/12.15.0/firebase-database.js';
 import { showsInDateTab, resolveTheme, isOverdue, formatTimeCell, shouldOpenSheetOnKey } from './view-logic.mjs';
 import { icon } from './icons.mjs';
+import { getChildProjects, getDescendantIds, flattenProjects, hasDate, isHiddenFromDateTabs } from './project-logic.mjs';
 import { getAuth, signInAnonymously, onAuthStateChanged, GoogleAuthProvider, signInWithRedirect, getRedirectResult, signInWithPopup, signOut } from 'https://www.gstatic.com/firebasejs/12.15.0/firebase-auth.js';
 
 const firebaseConfig = {
@@ -268,10 +275,33 @@ async function syncTasksToFirebase() {
     }
 }
 
+function saveProjects() {
+    syncProjectsToFirebase();
+}
+
+async function syncProjectsToFirebase() {
+    if (!firebaseDb || !currentUser) return;
+    try {
+        await set(ref(firebaseDb, `users/${currentUser.uid}/projects`), projects);
+    } catch (error) {
+        console.warn('Firebase project save failed', error);
+    }
+}
+
+// Firebase drops null fields and empty arrays, so rebuild each project's shape on load.
+function normalizeProjects(data) {
+    if (!Array.isArray(data)) return [];
+    return data
+        .filter((project) => project && project.id && typeof project.name === 'string')
+        .map((project) => ({ id: project.id, name: project.name, parentId: project.parentId || null }));
+}
+
 async function loadRemoteTasks() {
     if (!firebaseDb || !currentUser) return;
     try {
         const dbRef = ref(firebaseDb);
+        const projectSnapshot = await get(child(dbRef, `users/${currentUser.uid}/projects`));
+        projects = normalizeProjects(projectSnapshot.exists() ? projectSnapshot.val() : []);
         const snapshot = await get(child(dbRef, `users/${currentUser.uid}/tasks`));
 
         if (snapshot.exists()) {
@@ -555,6 +585,10 @@ function getItemsForTab() {
 
     if (activeTab === 'repeating') {
         items = tasks.filter((item) => item.repeatRule && isRepeatActive(item.repeatRule) && !item.isVirtual);
+    } else if (activeTab === 'projects') {
+        const projectIds = getProjectIds();
+        const todayIso = getTodayIso();
+        items = tasks.filter((item) => !item.isVirtual && projectIds.has(item.projectId) && showsInDateTab(item, todayIso));
     } else {
         const todayIso = getTodayIso();
         const baseItems = tasks.filter((item) => {
@@ -608,6 +642,11 @@ function getItemsForTab() {
         } else {
             items = baseItems;
         }
+
+        if (activeTab !== 'completed') {
+            const projectIds = getProjectIds();
+            items = items.filter((item) => !isHiddenFromDateTabs(item, projectIds));
+        }
     }
 
     if (!searchQuery.trim()) {
@@ -618,7 +657,7 @@ function getItemsForTab() {
     return items.filter((item) => item.text.toLowerCase().includes(query));
 }
 
-const editableTabs = new Set(['today', 'tomorrow', 'next3', 'nextMonth', 'later']);
+const editableTabs = new Set(['today', 'tomorrow', 'next3', 'nextMonth', 'later', 'projects']);
 
 function canRenameTask(task) {
     return editableTabs.has(activeTab) && !task.isVirtual && !task.completed;
@@ -658,6 +697,7 @@ const TAB_LABELS = {
     next3: 'Next 3 days',
     nextMonth: 'Next month',
     later: 'Later',
+    projects: 'Projects',
     repeating: 'Repeating',
     completed: 'Completed',
 };
@@ -689,6 +729,15 @@ function updateDayHeading() {
     dayDate.textContent = new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
     dayTitle.textContent = TAB_LABELS[activeTab] || '';
 
+    if (activeTab === 'projects') {
+        // Collapsed projects leave their tasks unrendered, so count from the data instead of the rows.
+        const items = getItemsForTab();
+        const done = items.filter((item) => item.completed).length;
+        const open = items.length - done;
+        dayCount.textContent = done > 0 ? `${open} open · ${done} done` : `${open} open`;
+        return;
+    }
+
     const rows = Array.from(todoList.querySelectorAll('.row'));
     const done = rows.filter((row) => row.classList.contains('row--done')).length;
     const open = rows.length - done;
@@ -704,6 +753,13 @@ function updateDayHeading() {
 function renderList() {
     expireStoppedRepeats();
     todoList.innerHTML = '';
+    todoList.classList.toggle('list--tree', activeTab === 'projects');
+    emptyState.textContent = activeTab === 'projects' && projects.length === 0 ? 'No projects yet.' : 'Nothing here.';
+
+    if (activeTab === 'projects') {
+        renderProjectTree();
+        return;
+    }
 
     let visibleTasks;
 
@@ -738,6 +794,235 @@ function renderList() {
         if (activeTab === 'repeating' && task.repeatRule && !task.repeatRule.interval) return;
         todoList.appendChild(createTaskRow(task, now));
     });
+}
+
+function getProjectIds() {
+    return new Set(projects.map((project) => project.id));
+}
+
+const COLLAPSED_KEY = 'todo-collapsed-projects';
+const collapsedProjects = loadCollapsedProjects();
+
+function loadCollapsedProjects() {
+    try {
+        return new Set(JSON.parse(localStorage.getItem(COLLAPSED_KEY)) || []);
+    } catch (error) {
+        return new Set();
+    }
+}
+
+function setProjectCollapsed(projectId, collapsed) {
+    if (collapsed) collapsedProjects.add(projectId);
+    else collapsedProjects.delete(projectId);
+    try {
+        localStorage.setItem(COLLAPSED_KEY, JSON.stringify([...collapsedProjects]));
+    } catch (error) {
+        // Storage can be unavailable (private mode); the tree still toggles for this visit.
+    }
+}
+
+// Open items first by date (undated last), struck-through items at the bottom.
+function sortProjectTasks(items) {
+    const sortKey = (item) => (hasDate(item)
+        ? unFormatTime(item.dueTime ?? item.startTime, item.dueDate ?? item.startDate ?? getTodayIso())
+        : Infinity);
+    return [...items].sort((a, b) => Number(Boolean(a.completed)) - Number(Boolean(b.completed)) || sortKey(a) - sortKey(b));
+}
+
+function renderProjectTree() {
+    const items = getItemsForTab();
+    const query = searchQuery.trim().toLowerCase();
+    const tasksByProject = new Map();
+    items.forEach((item) => {
+        if (!tasksByProject.has(item.projectId)) tasksByProject.set(item.projectId, []);
+        tasksByProject.get(item.projectId).push(item);
+    });
+
+    // While searching, keep only projects that match by name or hold a matching task somewhere below.
+    const matches = (project) => !query
+        || project.name.toLowerCase().includes(query)
+        || tasksByProject.has(project.id)
+        || getChildProjects(projects, project.id).some(matches);
+    const now = new Date();
+
+    const renderLevel = (parentId, depth) => {
+        getChildProjects(projects, parentId).filter(matches).forEach((project) => {
+            const subtree = [project.id, ...getDescendantIds(projects, project.id)];
+            const openCount = subtree.flatMap((id) => tasksByProject.get(id) || []).filter((item) => !item.completed).length;
+            const expanded = Boolean(query) || !collapsedProjects.has(project.id);
+            todoList.appendChild(createProjectHead(project, depth, openCount, expanded));
+            if (!expanded) return;
+
+            sortProjectTasks(tasksByProject.get(project.id) || []).forEach((task) => {
+                const row = createTaskRow(task, now);
+                row.style.setProperty('--depth', depth + 1);
+                todoList.appendChild(row);
+            });
+            renderLevel(project.id, depth + 1);
+        });
+    };
+    renderLevel(null, 0);
+
+    emptyState.style.display = todoList.children.length ? 'none' : 'block';
+}
+
+function createProjectHead(project, depth, openCount, expanded) {
+    const row = document.createElement('li');
+    row.className = 'row project-head';
+    row.style.setProperty('--depth', depth);
+
+    const toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.className = 'project-head__toggle';
+    toggle.setAttribute('aria-expanded', String(expanded));
+    toggle.innerHTML = `<span class="row__lead">${icon('chevron')}</span><span class="project-head__name">${escapeHtml(project.name)}</span>`;
+    toggle.addEventListener('click', () => {
+        setProjectCollapsed(project.id, expanded);
+        renderTasks();
+    });
+    row.appendChild(toggle);
+
+    const count = document.createElement('span');
+    count.className = 'row__time';
+    count.textContent = openCount > 0 ? String(openCount) : '';
+    row.appendChild(count);
+
+    const menuButton = document.createElement('button');
+    menuButton.type = 'button';
+    menuButton.className = 'icon-btn icon-btn--ghost row__trail';
+    menuButton.innerHTML = icon('more');
+    menuButton.setAttribute('aria-label', `${project.name} actions`);
+    menuButton.setAttribute('aria-haspopup', 'menu');
+    menuButton.setAttribute('aria-expanded', 'false');
+    menuButton.addEventListener('click', () => openMenu(menuButton, getProjectMenuItems(project, menuButton)));
+    row.appendChild(menuButton);
+
+    return row;
+}
+
+function getProjectMenuItems(project, anchor) {
+    return [
+        { label: 'Add task', icon: 'plus', onSelect: () => openSheet({ projectId: project.id }) },
+        { label: 'Add sub-project', icon: 'folder', onSelect: () => createProject(project.id) },
+        { label: 'Rename', icon: 'edit', onSelect: () => renameProject(project.id) },
+        { label: 'Move under…', icon: 'arrow-right', onSelect: () => openProjectMovePicker(project, anchor) },
+        'sep',
+        { label: 'Delete', icon: 'trash', danger: true, onSelect: () => deleteProject(project.id) },
+    ];
+}
+
+// Menu entries for every project except the excluded ones, labeled with their full path.
+function getProjectPickerItems(excludedIds, onPick) {
+    return flattenProjects(projects)
+        .filter(({ project }) => !excludedIds.has(project.id))
+        .map(({ project, path }) => ({ label: path.join(' › '), icon: 'folder', onSelect: () => onPick(project.id) }));
+}
+
+function openProjectMovePicker(project, anchor) {
+    const excluded = new Set([project.id, project.parentId, ...getDescendantIds(projects, project.id)]);
+    const items = getProjectPickerItems(excluded, (parentId) => moveProject(project.id, parentId));
+    if (project.parentId) items.unshift({ label: 'Top level', icon: 'later', onSelect: () => moveProject(project.id, null) });
+    if (!items.length) {
+        alert('There is no other project to move this under.');
+        return;
+    }
+    openMenu(anchor, items);
+}
+
+function createProject(parentId = null) {
+    const name = window.prompt(parentId ? 'Sub-project name' : 'Project name')?.trim();
+    if (!name) return;
+
+    projects.push({ id: createTaskId(), name, parentId });
+    if (parentId) setProjectCollapsed(parentId, false);
+    saveProjects();
+    renderTasks();
+}
+
+function renameProject(projectId) {
+    const project = projects.find((item) => item.id === projectId);
+    if (!project) return;
+    const name = window.prompt('Rename project', project.name)?.trim();
+    if (!name || name === project.name) return;
+
+    project.name = name;
+    saveProjects();
+    renderTasks();
+}
+
+function moveProject(projectId, parentId) {
+    projects = projects.map((project) => (project.id === projectId ? { ...project, parentId } : project));
+    if (parentId) setProjectCollapsed(parentId, false);
+    saveProjects();
+    renderTasks();
+}
+
+function deleteProject(projectId) {
+    const project = projects.find((item) => item.id === projectId);
+    if (!project) return;
+    const parent = projects.find((item) => item.id === project.parentId);
+    const outcome = parent
+        ? `Its tasks and sub-projects move to "${parent.name}".`
+        : 'Its sub-projects move to the top level and its tasks leave the project.';
+    if (!window.confirm(`Delete "${project.name}"? ${outcome}`)) return;
+
+    const parentId = parent ? parent.id : null;
+    projects = projects
+        .filter((item) => item.id !== projectId)
+        .map((item) => (item.parentId === projectId ? { ...item, parentId } : item));
+    tasks = tasks.map((task) => (task.projectId === projectId ? assignProject(task, parentId) : task));
+    setProjectCollapsed(projectId, false);
+    saveProjects();
+    saveTasks();
+    renderTasks();
+}
+
+// Returns a copy of the task in the given project (or none), keeping its date-tab choice.
+function assignProject(task, projectId) {
+    const { projectId: previousId, inDateTabs, ...rest } = task;
+    return projectId ? { ...rest, projectId, inDateTabs: Boolean(inDateTabs) } : rest;
+}
+
+function moveTaskToProject(taskId, projectId) {
+    tasks = tasks.map((task) => (task.id === taskId ? assignProject(task, projectId) : task));
+    if (projectId) setProjectCollapsed(projectId, false);
+    saveTasks();
+    renderTasks();
+}
+
+function setTaskInDateTabs(taskId, inDateTabs) {
+    const task = tasks.find((item) => item.id === taskId);
+    if (!task) return;
+
+    task.inDateTabs = inDateTabs;
+    saveTasks();
+    renderTasks();
+}
+
+function getTaskProjectMenuItems(task, anchor) {
+    if (!projects.length) return [];
+    const inProject = getProjectIds().has(task.projectId);
+    const items = [];
+
+    if (inProject && hasDate(task)) {
+        items.push({
+            label: task.inDateTabs ? 'Hide from date tabs' : 'Show in date tabs',
+            icon: 'today',
+            onSelect: () => setTaskInDateTabs(task.id, !task.inDateTabs),
+        });
+    }
+
+    items.push({
+        label: inProject ? 'Move to project…' : 'Add to project…',
+        icon: 'folder',
+        onSelect: () => {
+            const pickerItems = getProjectPickerItems(new Set([task.projectId]), (projectId) => moveTaskToProject(task.id, projectId));
+            if (inProject) pickerItems.unshift({ label: 'No project', icon: 'x', onSelect: () => moveTaskToProject(task.id, null) });
+            openMenu(anchor, pickerItems);
+        },
+    });
+
+    return items;
 }
 
 function createTaskRow(task, now) {
@@ -878,11 +1163,11 @@ function createRowTrail(task) {
     button.setAttribute('aria-label', 'More actions');
     button.setAttribute('aria-haspopup', 'menu');
     button.setAttribute('aria-expanded', 'false');
-    button.addEventListener('click', () => openMenu(button, getRowMenuItems(task)));
+    button.addEventListener('click', () => openMenu(button, getRowMenuItems(task, button)));
     return button;
 }
 
-function getRowMenuItems(task) {
+function getRowMenuItems(task, anchor) {
     const deleteItem = { label: 'Delete', icon: 'trash', danger: true, onSelect: () => removeTask(task.id) };
 
     if (activeTab === 'repeating') {
@@ -905,6 +1190,13 @@ function getRowMenuItems(task) {
         return [{ label: 'Mark active', icon: 'undo', onSelect: () => toggleTask(task.id) }, 'sep', deleteItem];
     }
 
+    const projectItems = getTaskProjectMenuItems(task, anchor);
+    const tail = projectItems.length ? [...projectItems, 'sep', deleteItem] : [deleteItem];
+
+    if (activeTab === 'projects') {
+        return tail;
+    }
+
     if (task.noDue) {
         const setSection = (section) => () => {
             task.section = section;
@@ -915,7 +1207,7 @@ function getRowMenuItems(task) {
             { label: 'Show in Today', icon: 'today', onSelect: setSection('today') },
             { label: 'Show in Later', icon: 'later', onSelect: setSection('later') },
             'sep',
-            deleteItem,
+            ...tail,
         ];
     }
 
@@ -925,7 +1217,7 @@ function getRowMenuItems(task) {
         { label: 'In 2 days', icon: 'arrow-right', hint: '+2d', onSelect: () => postponeTask(task.id, 2) },
         { label: 'In 3 days', icon: 'arrow-skip', hint: '+3d', onSelect: () => postponeTask(task.id, 3) },
         'sep',
-        deleteItem,
+        ...tail,
     ];
 }
 
@@ -1015,7 +1307,11 @@ document.addEventListener('keydown', (event) => {
 });
 
 window.addEventListener('resize', () => closeMenu({ restoreFocus: false }));
-window.addEventListener('scroll', () => closeMenu({ restoreFocus: false }), true);
+window.addEventListener('scroll', (event) => {
+    // A long project picker scrolls inside the menu; only page scrolls should close it.
+    if (openMenuState?.menu.contains(event.target)) return;
+    closeMenu({ restoreFocus: false });
+}, true);
 
 function addTask(text) {
     const itemType = itemTypeSelect.value;
@@ -1071,6 +1367,11 @@ function addTask(text) {
         item.section = noDue ? taskSectionSelect.value : 'today';
         item.dueDate = noDue ? getTodayIso() : normalizeDate(dueDateInput.value || getTodayIso());
         item.dueTime = noDue ? '' : dueTimeInput.value;
+    }
+
+    if (projectSelect.value) {
+        item.projectId = projectSelect.value;
+        item.inDateTabs = inDateTabsCheckbox.checked;
     }
 
     tasks.push(item);
@@ -1179,6 +1480,7 @@ function toggleTask(taskId) {
                 dismissed: false,
                 repeatRule: null,
                 isVirtual: false,
+                ...definedFields({ projectId: task.projectId, inDateTabs: task.inDateTabs }),
             };
 
             if (task.type === 'event') {
@@ -1279,6 +1581,7 @@ function setActiveTab(tabName) {
     tabButtons.forEach((button) => {
         button.classList.toggle('active', button.dataset.tab === tabName);
     });
+    newProjectButton.classList.toggle('hidden', tabName !== 'projects');
     repeatEditorTaskId = null;
     searchQuery = '';
     searchInput.value = '';
@@ -1289,7 +1592,8 @@ function updateNoDueState() {
     const disabled = noDueCheckbox.checked;
     dueDateInput.disabled = disabled;
     dueTimeInput.disabled = disabled;
-    taskSectionField.classList.toggle('hidden', !disabled);
+    // An undated project task lives only in its project, so Today/Later does not apply.
+    taskSectionField.classList.toggle('hidden', !disabled || Boolean(projectSelect.value));
     if (disabled) {
         dueDateInput.value = getTodayIso();
         dueTimeInput.value = '';
@@ -1349,6 +1653,19 @@ function updateFormMode() {
     revealTimeRow.classList.toggle('hidden', isEvent);
     typeTaskButton.setAttribute('aria-pressed', String(!isEvent));
     typeEventButton.setAttribute('aria-pressed', String(isEvent));
+    updateProjectFields();
+}
+
+function updateProjectFields() {
+    projectRow.classList.toggle('hidden', projects.length === 0);
+    const dated = itemTypeSelect.value === 'event' || !noDueCheckbox.checked;
+    dateTabsSwitch.classList.toggle('hidden', !projectSelect.value || !dated);
+}
+
+function populateProjectSelect(selectedId) {
+    projectSelect.replaceChildren(new Option('No project', ''));
+    flattenProjects(projects).forEach(({ project, path }) => projectSelect.add(new Option(path.join(' › '), project.id)));
+    projectSelect.value = projects.some((project) => project.id === selectedId) ? selectedId : '';
 }
 
 [typeTaskButton, typeEventButton].forEach((button) => {
@@ -1371,6 +1688,11 @@ repeatTaskCheckbox.addEventListener('change', updateRepeatVisibility);
 repeatUnitSelect.addEventListener('change', updateRepeatFieldVisibility);
 repeatMonthPatternSelect.addEventListener('change', updateRepeatFieldVisibility);
 itemTypeSelect.addEventListener('change', () => {
+    updateFormMode();
+});
+
+projectSelect.addEventListener('change', () => {
+    updateNoDueState();
     updateFormMode();
 });
 
@@ -1430,7 +1752,7 @@ searchInput.addEventListener('input', (event) => {
 
 async function exportTasks() {
     try {
-        await navigator.clipboard.writeText(JSON.stringify(tasks, null, 2));
+        await navigator.clipboard.writeText(JSON.stringify({ tasks, projects }, null, 2));
         alert('Tasks copied to clipboard');
     } catch (error) {
         alert('Unable to copy to clipboard. Please allow clipboard access or copy manually.');
@@ -1441,8 +1763,14 @@ async function importTasks() {
     try {
         const clipboardText = await navigator.clipboard.readText();
         const imported = JSON.parse(clipboardText);
-        if (!Array.isArray(imported)) throw new Error('Invalid JSON');
-        tasks = imported.map((item) => ({ ...item, id: item.id || createTaskId() }));
+        // Older exports are a bare task array; newer ones are { tasks, projects }.
+        const importedTasks = Array.isArray(imported) ? imported : imported?.tasks;
+        if (!Array.isArray(importedTasks)) throw new Error('Invalid JSON');
+        tasks = importedTasks.map((item) => ({ ...item, id: item.id || createTaskId() }));
+        if (Array.isArray(imported?.projects)) {
+            projects = normalizeProjects(imported.projects);
+            saveProjects();
+        }
         saveTasks();
         renderTasks();
         alert('Tasks imported from clipboard');
@@ -1476,15 +1804,24 @@ todoForm.addEventListener('submit', (event) => {
     repeatMonthWeekdayButtons.forEach((button) => button.classList.toggle('selected', button.dataset.day === '0'));
     taskSectionSelect.value = 'today';
     noDueCheckbox.checked = false;
+    projectSelect.value = '';
+    inDateTabsCheckbox.checked = false;
     updateNoDueState();
     updateRepeatVisibility();
     updateFormMode();
     closeSheet();
 });
 
-function openSheet() {
+// A project's "Add task" preselects it and starts undated, since project tasks usually have no date.
+function openSheet({ projectId } = {}) {
     if (addSheet.open) return;
     closeMenu({ restoreFocus: false });
+    populateProjectSelect(projectId || projectSelect.value);
+    if (projectId) {
+        noDueCheckbox.checked = true;
+        setProjectCollapsed(projectId, false);
+    }
+    updateNoDueState();
     updateFormMode();
     addSheet.showModal();
     todoInput.focus();
@@ -1494,7 +1831,8 @@ function closeSheet() {
     if (addSheet.open) addSheet.close();
 }
 
-newItemButton.addEventListener('click', openSheet);
+newItemButton.addEventListener('click', () => openSheet());
+newProjectButton.addEventListener('click', () => createProject());
 sheetCancelButton.addEventListener('click', closeSheet);
 
 // A click that lands on the dialog element itself is a click on the backdrop.
@@ -1559,6 +1897,7 @@ async function signOutUser() {
     closeSheet();
     toggleSearch(false);
     tasks = [];
+    projects = [];
     editingTaskId = null;
     setActiveTab('today');
     appShell.classList.add('hidden');

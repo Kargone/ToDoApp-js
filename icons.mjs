@@ -17,6 +17,9 @@ const PATHS = {
     download: '<path d="M12 4v11M7 10l5 5 5-5M5 20h14"/>',
     upload: '<path d="M12 15V4M7 9l5-5 5 5M5 20h14"/>',
     'sign-out': '<path d="M15 4h4v16h-4M10 8l-4 4 4 4M6 12h10"/>',
+    chevron: '<path d="M9.5 6l6 6-6 6"/>',
+    folder: '<path d="M3.5 7a2 2 0 0 1 2-2h4l2 2.5h7a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/>',
+    plus: '<path d="M12 5v14M5 12h14"/>',
 };
 
 export function icon(name, className = 'icon') {
