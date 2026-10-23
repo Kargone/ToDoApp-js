@@ -9,7 +9,7 @@ A browser todo and event app with light and dark themes, built with plain HTML, 
 - Custom repeat scheduling by day, week (chosen weekdays), month (days of month or week-of-month), or year
 - Optional repeat stop date and reveal time for future occurrences
 - Tabs: Today, Tomorrow, Next 3 days, Next month, Later, Projects, Repeating, Completed, each with a count
-- Projects: group tasks under labels that can nest inside each other, shown as a collapsible tree. A project task's date is optional; dated ones can also be shown in the date tabs (off by default)
+- Projects: group tasks under labels that can nest inside each other, shown as a collapsible tree. A project task's date is optional (undated ones read as today); dated ones can also be shown in the date tabs (off by default). Tasks dated more than 3 days out stay hidden until they get closer
 - Tick the circle to complete a task: it stays crossed off until you press its X (or until tomorrow), then lives in Completed
 - Per-task "…" menu: postpone (+2h, +1d, +2d, +3d), move no-due items, add to or move between projects, show/hide a project task in the date tabs, edit repeat rules, delete
 - Per-project "…" menu: add task, add sub-project, rename, move under another project, delete (its tasks and sub-projects move up a level)

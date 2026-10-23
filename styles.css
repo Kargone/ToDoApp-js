@@ -669,7 +669,7 @@ svg {
 .project-head__toggle .row__lead svg {
   width: 14px;
   height: 14px;
-  transition: transform 120ms ease;
+  transition: transform 360ms cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .project-head__toggle[aria-expanded="true"] .row__lead svg {

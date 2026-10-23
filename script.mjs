@@ -94,7 +94,7 @@ let projects = [];
 // Import the functions you need from the SDKs you need
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-app.js";
 import { getDatabase, ref, set, get, child } from 'https://www.gstatic.com/firebasejs/12.15.0/firebase-database.js';
-import { showsInDateTab, resolveTheme, isOverdue, formatTimeCell, shouldOpenSheetOnKey } from './view-logic.mjs';
+import { showsInDateTab, resolveTheme, isOverdue, formatTimeCell, shouldOpenSheetOnKey, itemDate, toIsoDate } from './view-logic.mjs';
 import { icon } from './icons.mjs';
 import { getChildProjects, getDescendantIds, flattenProjects, hasDate, isHiddenFromDateTabs } from './project-logic.mjs';
 import { getAuth, signInAnonymously, onAuthStateChanged, GoogleAuthProvider, signInWithRedirect, getRedirectResult, signInWithPopup, signOut } from 'https://www.gstatic.com/firebasejs/12.15.0/firebase-auth.js';
@@ -588,7 +588,12 @@ function getItemsForTab() {
     } else if (activeTab === 'projects') {
         const projectIds = getProjectIds();
         const todayIso = getTodayIso();
-        items = tasks.filter((item) => !item.isVirtual && projectIds.has(item.projectId) && showsInDateTab(item, todayIso));
+        // Like the Next 3 days tab, anything dated further out stays hidden until it gets closer.
+        const horizon = addInterval(todayIso, 3, 'day');
+        items = tasks.filter((item) => !item.isVirtual
+            && projectIds.has(item.projectId)
+            && showsInDateTab(item, todayIso)
+            && (!hasDate(item) || itemDate(item) <= horizon));
     } else {
         const todayIso = getTodayIso();
         const baseItems = tasks.filter((item) => {
@@ -869,6 +874,7 @@ function renderProjectTree() {
 function createProjectHead(project, depth, openCount, expanded) {
     const row = document.createElement('li');
     row.className = 'row project-head';
+    row.dataset.projectId = project.id;
     row.style.setProperty('--depth', depth);
 
     const toggle = document.createElement('button');
@@ -876,10 +882,7 @@ function createProjectHead(project, depth, openCount, expanded) {
     toggle.className = 'project-head__toggle';
     toggle.setAttribute('aria-expanded', String(expanded));
     toggle.innerHTML = `<span class="row__lead">${icon('chevron')}</span><span class="project-head__name">${escapeHtml(project.name)}</span>`;
-    toggle.addEventListener('click', () => {
-        setProjectCollapsed(project.id, expanded);
-        renderTasks();
-    });
+    toggle.addEventListener('click', () => toggleProject(project.id, row, expanded));
     row.appendChild(toggle);
 
     const count = document.createElement('span');
@@ -898,6 +901,74 @@ function createProjectHead(project, depth, openCount, expanded) {
     row.appendChild(menuButton);
 
     return row;
+}
+
+const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+let projectToggleBusy = false;
+
+// The tree is flat <li>s, so a project's rows are the ones after its head that sit deeper than it.
+function getProjectRows(head) {
+    const depth = Number(head.style.getPropertyValue('--depth'));
+    const rows = [];
+    for (let row = head.nextElementSibling; row && Number(row.style.getPropertyValue('--depth')) > depth; row = row.nextElementSibling) {
+        rows.push(row);
+    }
+    return rows;
+}
+
+// Grows a row from nothing to its natural size, so the rows below slide instead of jumping.
+function rowGrowKeyframes(row) {
+    const style = getComputedStyle(row);
+    return [
+        { height: '0px', minHeight: '0px', paddingTop: '0px', paddingBottom: '0px', borderTopWidth: '0px', opacity: 0, transform: 'translateY(-10px) scale(0.98)', filter: 'blur(2px)' },
+        { height: `${row.offsetHeight}px`, minHeight: style.minHeight, paddingTop: style.paddingTop, paddingBottom: style.paddingBottom, borderTopWidth: style.borderTopWidth, opacity: 1, transform: 'none', filter: 'none' },
+    ];
+}
+
+function animateRows(rows, { opening }) {
+    return Promise.all(rows.map((row, index) => {
+        const order = opening ? index : rows.length - 1 - index;
+        const keyframes = rowGrowKeyframes(row);
+        row.style.overflow = 'hidden';
+        const animation = row.animate(opening ? keyframes : keyframes.reverse(), {
+            duration: opening ? 320 : 220,
+            delay: Math.min(order, 10) * (opening ? 28 : 16),
+            easing: opening ? 'cubic-bezier(0.16, 1, 0.3, 1)' : 'cubic-bezier(0.5, 0, 0.75, 0)',
+            fill: opening ? 'backwards' : 'forwards',
+        });
+        return animation.finished.catch(() => {}).finally(() => {
+            if (opening) row.style.overflow = '';
+        });
+    }));
+}
+
+async function toggleProject(projectId, head, expanded) {
+    if (projectToggleBusy) return;
+    const animate = !reducedMotion.matches;
+
+    if (expanded && animate) {
+        // Flip the chevron now (CSS transition) and fold the rows away before re-rendering without them.
+        projectToggleBusy = true;
+        head.querySelector('.project-head__toggle').setAttribute('aria-expanded', 'false');
+        await animateRows(getProjectRows(head), { opening: false });
+        projectToggleBusy = false;
+    }
+
+    setProjectCollapsed(projectId, expanded);
+    renderTasks();
+
+    const newHead = todoList.querySelector(`[data-project-id="${CSS.escape(projectId)}"]`);
+    if (!newHead) return;
+    const toggle = newHead.querySelector('.project-head__toggle');
+    toggle.focus({ preventScroll: true });
+
+    if (!expanded && animate) {
+        toggle.querySelector('svg').animate(
+            [{ transform: 'rotate(0deg)' }, { transform: 'rotate(90deg)' }],
+            { duration: 360, easing: 'cubic-bezier(0.34, 1.56, 0.64, 1)' }
+        );
+        animateRows(getProjectRows(newHead), { opening: true });
+    }
 }
 
 function getProjectMenuItems(project, anchor) {
@@ -1048,7 +1119,9 @@ function createTaskRow(task, now) {
 
     const time = document.createElement('span');
     time.className = 'row__time';
-    time.textContent = formatTimeCell(task, now);
+    // An undated project task reads as due today rather than showing a dash.
+    const cellTask = activeTab === 'projects' && !hasDate(task) ? { ...task, noDue: false, dueDate: toIsoDate(now), dueTime: '' } : task;
+    time.textContent = formatTimeCell(cellTask, now);
     time.title = formatDueLabel(task);
     if (isOverdue(task, now)) {
         time.classList.add('row__time--late');
@@ -1914,7 +1987,7 @@ accountButton.addEventListener('click', () => openMenu(accountButton, [
 // Re-render when the page comes back into view and once a minute, so the date line, overdue colors and
 // yesterday's struck-through items stay current. Skipped while the user is mid-interaction.
 function refreshIfIdle() {
-    if (appShell.classList.contains('hidden') || addSheet.open || openMenuState || editingTaskId || repeatEditorTaskId) return;
+    if (appShell.classList.contains('hidden') || addSheet.open || openMenuState || editingTaskId || repeatEditorTaskId || projectToggleBusy) return;
     renderTasks();
 }
 
