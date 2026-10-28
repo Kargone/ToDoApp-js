@@ -16,7 +16,8 @@ A browser todo and event app with light and dark themes, built with plain HTML, 
 - Search the current tab
 - Import and export tasks and projects as JSON via the clipboard (account menu); older task-only exports still import
 - Light and dark themes; follows the system setting until you pick one
-- Firebase Realtime Database sync with Google sign-in
+- Firebase Realtime Database sync with Google sign-in; changes from other devices show up live
+- Completed items finished more than a year ago move to an archive on load (Export archive in the account menu)
 
 ## Files
 
@@ -25,6 +26,7 @@ A browser todo and event app with light and dark themes, built with plain HTML, 
 - `script.mjs` — task logic, tabs, menus, Firebase sync
 - `view-logic.mjs` — pure display helpers (time column, overdue, theme), unit-tested
 - `project-logic.mjs` — pure project-tree helpers (children, descendants, picker order, date-tab visibility), unit-tested
+- `sync-logic.mjs` — pure helpers for the keyed database layout (diffing, migration, archive selection), unit-tested
 - `icons.mjs` — inline SVG icon set
 
 ## Run locally
@@ -38,7 +40,9 @@ A browser todo and event app with light and dark themes, built with plain HTML, 
 
 ## Notes
 
-- Tasks and projects are stored in Firebase under your account (`tasks` and `projects`); nothing task-related is kept in the browser.
+- Data lives in Firebase at `users/<uid>`: `schemaVersion`, `tasks/<key>`, `projects/<key>` and `archive/<key>`. Keys are Firebase push keys and double as ids. Nothing task-related is kept in the browser.
+- New tasks are written with `push()`; other edits send one `update()` holding only the records that changed. Listeners on `tasks` and `projects` keep the page current.
+- On load, an older array-shaped user node is converted to the keyed layout in one update, keeping existing ids as keys.
 - `localStorage` holds only the theme choice (`todo-theme`) and which projects are collapsed on this device (`todo-collapsed-projects`).
 - Items overdue from earlier days show in Today with an orange time.
 - Clipboard import/export uses JSON text on the clipboard.

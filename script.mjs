@@ -61,7 +61,7 @@ function initializeFirebase() {
             signInShell.classList.add('hidden');
             appShell.classList.remove('hidden');
             initialize();
-            loadRemoteTasks();
+            startSync();
         } else {
             currentUser = null;
             console.log("No authenticated user session found.");
@@ -75,7 +75,7 @@ function initializeFirebase() {
         currentUser = credential.user;
         firebaseDb = getDatabase(app);
         console.log('Successfully signed in anonymously!', currentUser.uid);
-        await loadRemoteTasks();
+        await startSync();
     } catch (error) {
         console.error('Error signing in:', error.code, error.message);
     }
@@ -93,10 +93,11 @@ let projects = [];
 
 // Import the functions you need from the SDKs you need
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-app.js";
-import { getDatabase, ref, set, get, child } from 'https://www.gstatic.com/firebasejs/12.15.0/firebase-database.js';
+import { getDatabase, ref, set, get, push, update, onValue } from 'https://www.gstatic.com/firebasejs/12.15.0/firebase-database.js';
 import { showsInDateTab, resolveTheme, isOverdue, formatTimeCell, shouldOpenSheetOnKey, itemDate, toIsoDate } from './view-logic.mjs';
 import { icon } from './icons.mjs';
 import { getChildProjects, getDescendantIds, flattenProjects, hasDate, isHiddenFromDateTabs } from './project-logic.mjs';
+import { SCHEMA_VERSION, toStored, stableStringify, fromStored, fingerprint, diffCollection, migrateCollection, selectArchivable, buildArchiveUpdates } from './sync-logic.mjs';
 import { getAuth, signInAnonymously, onAuthStateChanged, GoogleAuthProvider, signInWithRedirect, getRedirectResult, signInWithPopup, signOut } from 'https://www.gstatic.com/firebasejs/12.15.0/firebase-auth.js';
 
 const firebaseConfig = {
@@ -257,38 +258,57 @@ function formatRepeatLabel(rule) {
     return labels.join(' ');
 }
 
+// Firebase push keys: unique across devices and ordered by creation time. They double as record ids.
 function createTaskId() {
+    if (firebaseDb) return push(ref(firebaseDb)).key;
     return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
-function saveTasks() {
-    syncTasksToFirebase();
+function userRef(path = '') {
+    return ref(firebaseDb, path ? `users/${currentUser.uid}/${path}` : `users/${currentUser.uid}`);
 }
 
-async function syncTasksToFirebase() {
-    if (!firebaseDb || !currentUser) return;
-    try {
-        await set(ref(firebaseDb, `users/${currentUser.uid}/tasks`), tasks);
-    } catch (error) {
-        console.log('tasks', tasks);
-        console.warn('Firebase save failed', error);
-    }
+// Fingerprints of what the database last held, by id. Saves write only the records that differ from them,
+// and listener events that match them are echoes of this page's own writes.
+const synced = { tasks: new Map(), projects: new Map() };
+const loaded = { tasks: false, projects: false };
+let syncUnsubscribers = [];
+
+function saveTasks() {
+    writeChanges('tasks', tasks);
 }
 
 function saveProjects() {
-    syncProjectsToFirebase();
+    writeChanges('projects', projects);
 }
 
-async function syncProjectsToFirebase() {
-    if (!firebaseDb || !currentUser) return;
-    try {
-        await set(ref(firebaseDb, `users/${currentUser.uid}/projects`), projects);
-    } catch (error) {
-        console.warn('Firebase project save failed', error);
+function writeChanges(collectionName, items) {
+    if (!firebaseDb || !currentUser || !loaded[collectionName]) return;
+    const { updates, next } = diffCollection(collectionName, synced[collectionName], items);
+    if (!Object.keys(updates).length) return;
+
+    // Recorded before writing: the SDK fires the local listener event synchronously inside update().
+    synced[collectionName] = next;
+    update(userRef(), updates).catch((error) => console.warn(`Firebase ${collectionName} save failed`, error));
+}
+
+// New tasks take their key from push(), then write to that key.
+function pushTask(item) {
+    if (!firebaseDb || !currentUser || !loaded.tasks) {
+        item.id = createTaskId();
+        tasks.push(item);
+        return;
     }
+
+    const taskRef = push(userRef('tasks'));
+    const stored = toStored(item);
+    item.id = taskRef.key;
+    tasks.push(item);
+    synced.tasks.set(item.id, stableStringify(stored));
+    set(taskRef, stored).catch((error) => console.warn('Firebase task add failed', error));
 }
 
-// Firebase drops null fields and empty arrays, so rebuild each project's shape on load.
+// Firebase drops null fields, so rebuild each project's shape.
 function normalizeProjects(data) {
     if (!Array.isArray(data)) return [];
     return data
@@ -296,31 +316,111 @@ function normalizeProjects(data) {
         .map((project) => ({ id: project.id, name: project.name, parentId: project.parentId || null }));
 }
 
-async function loadRemoteTasks() {
+// On every load: bring an old array-shaped user node up to the keyed layout, then listen for changes from any
+// device. The first task snapshot also moves year-old completed items into the archive.
+async function startSync() {
     if (!firebaseDb || !currentUser) return;
+    stopSync();
+
     try {
-        const dbRef = ref(firebaseDb);
-        const projectSnapshot = await get(child(dbRef, `users/${currentUser.uid}/projects`));
-        projects = normalizeProjects(projectSnapshot.exists() ? projectSnapshot.val() : []);
-        const snapshot = await get(child(dbRef, `users/${currentUser.uid}/tasks`));
-
-        if (snapshot.exists()) {
-            const data = snapshot.val();
-            if (Array.isArray(data)) {
-                tasks = data;
-                console.log('Loaded tasks from Firebase:', tasks);
-                renderTasks();
-            }
-        } else {
-            console.log('No data available at this location.');
-            // If no data exists, you might want to initialize tasks to an empty array or handle it as needed
-            tasks = [];
-            renderTasks();
-        }
-
-        console.log('Firebase load completed');
+        const version = await get(userRef('schemaVersion'));
+        if ((version.val() || 0) < SCHEMA_VERSION) await migrateUserNode();
     } catch (error) {
         console.warn('Firebase load failed', error);
+        return;
+    }
+
+    let archiveChecked = false;
+    syncUnsubscribers = [
+        onValue(userRef('projects'), (snapshot) => applyRemote('projects', snapshot.val()),
+            (error) => console.warn('Firebase project listener failed', error)),
+        onValue(userRef('tasks'), (snapshot) => {
+            applyRemote('tasks', snapshot.val());
+            if (!archiveChecked) {
+                archiveChecked = true;
+                archiveOldTasks();
+            }
+        }, (error) => console.warn('Firebase task listener failed', error)),
+    ];
+}
+
+function stopSync() {
+    syncUnsubscribers.forEach((unsubscribe) => unsubscribe());
+    syncUnsubscribers = [];
+    synced.tasks = new Map();
+    synced.projects = new Map();
+    loaded.tasks = false;
+    loaded.projects = false;
+}
+
+async function migrateUserNode() {
+    const [taskSnapshot, projectSnapshot] = await Promise.all([get(userRef('tasks')), get(userRef('projects'))]);
+    // One update replaces both collections and stamps the version, so a half-migrated node can't happen.
+    await update(userRef(), {
+        tasks: migrateCollection(taskSnapshot.val(), createTaskId),
+        projects: migrateCollection(projectSnapshot.val(), createTaskId),
+        schemaVersion: SCHEMA_VERSION,
+    });
+}
+
+function sameFingerprint(a, b) {
+    if (a.size !== b.size) return false;
+    for (const [id, print] of a) {
+        if (b.get(id) !== print) return false;
+    }
+    return true;
+}
+
+let remigrating = false;
+
+function applyRemote(collectionName, value) {
+    // A tab still running the old code writes whole arrays back; re-key them rather than reading indexes as ids.
+    if (Array.isArray(value)) {
+        if (!remigrating) {
+            remigrating = true;
+            migrateUserNode()
+                .catch((error) => console.warn('Firebase migration failed', error))
+                .finally(() => { remigrating = false; });
+        }
+        return;
+    }
+
+    const records = fromStored(value);
+    const print = fingerprint(records);
+    const firstLoad = !loaded[collectionName];
+    loaded[collectionName] = true;
+    if (!firstLoad && sameFingerprint(print, synced[collectionName])) return;
+
+    synced[collectionName] = print;
+    if (collectionName === 'tasks') tasks = records;
+    else projects = normalizeProjects(records);
+    renderWhenIdle();
+}
+
+function archiveOldTasks() {
+    const todayIso = getTodayIso();
+    const old = selectArchivable(tasks, todayIso);
+    if (!old.length) return;
+
+    const ids = new Set(old.map((item) => item.id));
+    tasks = tasks.filter((item) => !ids.has(item.id));
+    ids.forEach((id) => synced.tasks.delete(id));
+    update(userRef(), buildArchiveUpdates(old, todayIso)).catch((error) => console.warn('Firebase archive failed', error));
+    renderWhenIdle();
+}
+
+async function exportArchive() {
+    try {
+        const snapshot = await get(userRef('archive'));
+        const archive = fromStored(snapshot.val());
+        if (!archive.length) {
+            alert('The archive is empty.');
+            return;
+        }
+        await navigator.clipboard.writeText(JSON.stringify({ archive }, null, 2));
+        alert(`${archive.length} archived items copied to clipboard`);
+    } catch (error) {
+        alert('Unable to copy the archive. Please allow clipboard access and try again.');
     }
 }
 
@@ -1406,7 +1506,6 @@ function addTask(text) {
         : null;
 
     const item = {
-        id: createTaskId(),
         type: itemType,
         text,
         completed: false,
@@ -1447,8 +1546,7 @@ function addTask(text) {
         item.inDateTabs = inDateTabsCheckbox.checked;
     }
 
-    tasks.push(item);
-    saveTasks();
+    pushTask(item);
     renderTasks();
     return item;
 }
@@ -1839,9 +1937,9 @@ async function importTasks() {
         // Older exports are a bare task array; newer ones are { tasks, projects }.
         const importedTasks = Array.isArray(imported) ? imported : imported?.tasks;
         if (!Array.isArray(importedTasks)) throw new Error('Invalid JSON');
-        tasks = importedTasks.map((item) => ({ ...item, id: item.id || createTaskId() }));
+        tasks = fromStored(migrateCollection(importedTasks, createTaskId));
         if (Array.isArray(imported?.projects)) {
-            projects = normalizeProjects(imported.projects);
+            projects = normalizeProjects(fromStored(migrateCollection(imported.projects, createTaskId)));
             saveProjects();
         }
         saveTasks();
@@ -1967,6 +2065,7 @@ async function signOutUser() {
         console.error('Error signing out:', error);
         return;
     }
+    stopSync();
     closeSheet();
     toggleSearch(false);
     tasks = [];
@@ -1980,14 +2079,33 @@ async function signOutUser() {
 accountButton.addEventListener('click', () => openMenu(accountButton, [
     { label: 'Export JSON', icon: 'download', onSelect: exportTasks },
     { label: 'Import JSON', icon: 'upload', onSelect: importTasks },
+    { label: 'Export archive', icon: 'download', onSelect: exportArchive },
     'sep',
     { label: 'Sign out', icon: 'sign-out', onSelect: signOutUser },
 ]));
 
 // Re-render when the page comes back into view and once a minute, so the date line, overdue colors and
 // yesterday's struck-through items stay current. Skipped while the user is mid-interaction.
+function isInteracting() {
+    return Boolean(openMenuState || editingTaskId || repeatEditorTaskId || projectToggleBusy);
+}
+
 function refreshIfIdle() {
-    if (appShell.classList.contains('hidden') || addSheet.open || openMenuState || editingTaskId || repeatEditorTaskId || projectToggleBusy) return;
+    if (appShell.classList.contains('hidden') || addSheet.open || isInteracting()) return;
+    renderTasks();
+}
+
+// Changes from the database re-render straight away unless a menu, rename or editor is open; then they wait
+// for it to close rather than yanking it away.
+let remoteRenderTimer = null;
+
+function renderWhenIdle() {
+    clearTimeout(remoteRenderTimer);
+    if (appShell.classList.contains('hidden')) return;
+    if (isInteracting()) {
+        remoteRenderTimer = setTimeout(renderWhenIdle, 400);
+        return;
+    }
     renderTasks();
 }
 
