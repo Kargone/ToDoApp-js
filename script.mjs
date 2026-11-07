@@ -50,6 +50,10 @@ const projectRow = document.getElementById('project-row');
 const projectSelect = document.getElementById('project-select');
 const dateTabsSwitch = document.getElementById('date-tabs-switch');
 const inDateTabsCheckbox = document.getElementById('in-date-tabs');
+const alarmRow = document.getElementById('alarm-row');
+const alarmControls = document.getElementById('alarm-controls');
+const alarmTaskCheckbox = document.getElementById('alarm-task');
+const alarmTimeInput = document.getElementById('alarm-time');
 
 function initializeFirebase() {
     onAuthStateChanged(auth, (user) => {
@@ -94,7 +98,7 @@ let projects = [];
 // Import the functions you need from the SDKs you need
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-app.js";
 import { getDatabase, ref, set, get, push, update, onValue } from 'https://www.gstatic.com/firebasejs/12.15.0/firebase-database.js';
-import { showsInDateTab, resolveTheme, isOverdue, formatTimeCell, shouldOpenSheetOnKey, itemDate, toIsoDate } from './view-logic.mjs';
+import { showsInDateTab, resolveTheme, isOverdue, formatTimeCell, shouldOpenSheetOnKey, itemDate, itemTime, toIsoDate } from './view-logic.mjs';
 import { icon } from './icons.mjs';
 import { getChildProjects, getDescendantIds, flattenProjects, hasDate, isHiddenFromDateTabs } from './project-logic.mjs';
 import { SCHEMA_VERSION, toStored, stableStringify, fromStored, fingerprint, diffCollection, migrateCollection, selectArchivable, buildArchiveUpdates } from './sync-logic.mjs';
@@ -1209,6 +1213,7 @@ function createTaskRow(task, now) {
     const metaParts = [];
     if (task.repeatRule) metaParts.push(`${icon('repeat', 'icon-sm')}<span>${escapeHtml(formatRepeatLabel(task.repeatRule))}</span>`);
     if (task.type === 'event' && task.endTime) metaParts.push(`<span>until ${escapeHtml(task.endTime)}</span>`);
+    if (task.alarmTime && !task.completed) metaParts.push(`${icon('alarm', 'icon-sm')}<span>${escapeHtml(formatTime(task.alarmTime))}</span>`);
     if (metaParts.length) {
         const meta = document.createElement('div');
         meta.className = 'row__meta';
@@ -1365,9 +1370,10 @@ function getRowMenuItems(task, anchor) {
 
     const projectItems = getTaskProjectMenuItems(task, anchor);
     const tail = projectItems.length ? [...projectItems, 'sep', deleteItem] : [deleteItem];
+    const alarmItems = getAlarmMenuItems(task);
 
     if (activeTab === 'projects') {
-        return tail;
+        return alarmItems.length ? [...alarmItems, 'sep', ...tail] : tail;
     }
 
     if (task.noDue) {
@@ -1389,9 +1395,49 @@ function getRowMenuItems(task, anchor) {
         { label: 'Tomorrow', icon: 'calendar', hint: '+1d', onSelect: () => postponeTask(task.id, 1) },
         { label: 'In 2 days', icon: 'arrow-right', hint: '+2d', onSelect: () => postponeTask(task.id, 2) },
         { label: 'In 3 days', icon: 'arrow-skip', hint: '+3d', onSelect: () => postponeTask(task.id, 3) },
+        ...(alarmItems.length ? ['sep', ...alarmItems] : []),
         'sep',
         ...tail,
     ];
+}
+
+// Set / change / remove an item's alarm from the row menu. Only dated, non-virtual items can ring.
+// The web app stores and displays the time; the Android app is what actually rings it.
+function getAlarmMenuItems(task) {
+    if (task.isVirtual || !hasDate(task)) return [];
+    const has = Boolean(task.alarmTime);
+    const items = [{
+        label: has ? `Change alarm · ${formatTime(task.alarmTime)}` : 'Set alarm',
+        icon: 'alarm',
+        onSelect: () => editAlarm(task),
+    }];
+    if (has) {
+        items.push({ label: 'Remove alarm', icon: 'x', onSelect: () => setAlarm(task, null) });
+    }
+    return items;
+}
+
+function setAlarm(task, value) {
+    if (value) task.alarmTime = value;
+    else delete task.alarmTime;
+    saveTasks();
+    renderTasks();
+}
+
+function editAlarm(task) {
+    const base = task.alarmTime || itemTime(task) || '09:00';
+    const input = window.prompt('Alarm time (24-hour HH:MM)', base);
+    if (input === null) return;
+    const trimmed = input.trim();
+    if (!trimmed) {
+        setAlarm(task, null);
+        return;
+    }
+    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(trimmed)) {
+        window.alert('Enter the time as HH:MM in 24-hour format, e.g. 09:00 or 18:30.');
+        return;
+    }
+    setAlarm(task, trimmed);
 }
 
 function escapeHtml(value) {
@@ -1544,6 +1590,12 @@ function addTask(text) {
     if (projectSelect.value) {
         item.projectId = projectSelect.value;
         item.inDateTabs = inDateTabsCheckbox.checked;
+    }
+
+    // Dated items can carry an alarm time. The web app only stores and shows it; the Android app rings it.
+    const dated = itemType === 'event' || !noDue;
+    if (dated && alarmTaskCheckbox.checked && alarmTimeInput.value) {
+        item.alarmTime = alarmTimeInput.value;
     }
 
     pushTask(item);
@@ -1769,6 +1821,16 @@ function updateNoDueState() {
         dueDateInput.value = getTodayIso();
         dueTimeInput.value = '';
     }
+    updateAlarmVisibility();
+}
+
+// The alarm only makes sense when the item has a day to ring on (a dated task or any event).
+function updateAlarmVisibility() {
+    const dated = itemTypeSelect.value === 'event' || !noDueCheckbox.checked;
+    alarmRow.classList.toggle('hidden', !dated);
+    const on = dated && alarmTaskCheckbox.checked;
+    alarmControls.classList.toggle('hidden', !on);
+    if (on && !alarmTimeInput.value) alarmTimeInput.value = '09:00';
 }
 
 function updateRepeatVisibility() {
@@ -1825,6 +1887,7 @@ function updateFormMode() {
     typeTaskButton.setAttribute('aria-pressed', String(!isEvent));
     typeEventButton.setAttribute('aria-pressed', String(isEvent));
     updateProjectFields();
+    updateAlarmVisibility();
 }
 
 function updateProjectFields() {
@@ -1856,6 +1919,7 @@ noDueCheckbox.addEventListener('change', () => {
 });
 
 repeatTaskCheckbox.addEventListener('change', updateRepeatVisibility);
+alarmTaskCheckbox.addEventListener('change', updateAlarmVisibility);
 repeatUnitSelect.addEventListener('change', updateRepeatFieldVisibility);
 repeatMonthPatternSelect.addEventListener('change', updateRepeatFieldVisibility);
 itemTypeSelect.addEventListener('change', () => {
@@ -1975,6 +2039,8 @@ todoForm.addEventListener('submit', (event) => {
     repeatMonthWeekdayButtons.forEach((button) => button.classList.toggle('selected', button.dataset.day === '0'));
     taskSectionSelect.value = 'today';
     noDueCheckbox.checked = false;
+    alarmTaskCheckbox.checked = false;
+    alarmTimeInput.value = '';
     projectSelect.value = '';
     inDateTabsCheckbox.checked = false;
     updateNoDueState();
