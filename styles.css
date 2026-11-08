@@ -897,6 +897,13 @@ svg {
   background: var(--line);
 }
 
+/* Space the alarm divider/switch/controls like the form's own 14px-gap children. */
+#alarm-row {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
 .sheet__foot {
   display: flex;
   justify-content: flex-end;
