@@ -539,6 +539,13 @@ function createRepeatEditor(task) {
     <input type="time" class="edit-repeat-time" value="${task.repeatRule.revealTime || ''}" />
   `;
 
+    const alarmField = document.createElement('div');
+    alarmField.className = 'field';
+    alarmField.innerHTML = `
+    <label>Alarm time <span>(optional)</span></label>
+    <input type="time" class="edit-repeat-alarm" value="${task.alarmTime || ''}" />
+  `;
+
     const weekdayField = document.createElement('div');
     weekdayField.className = 'field edit-weekday-field hidden';
     const selectedWeekdays = task.repeatRule.daysOfWeek ?? [0, 1, 2, 3, 4, 5, 6];
@@ -586,6 +593,10 @@ function createRepeatEditor(task) {
             monthWeekdays: task.repeatRule.monthWeekdays || [task.repeatRule.monthWeekday || 0],
         };
 
+        const alarmValue = alarmField.querySelector('.edit-repeat-alarm').value;
+        if (alarmValue) task.alarmTime = alarmValue;
+        else delete task.alarmTime;
+
         repeatEditorTaskId = null;
         saveTasks();
         renderTasks();
@@ -603,7 +614,7 @@ function createRepeatEditor(task) {
     });
 
     footer.append(removeButton, saveButton);
-    content.append(intervalField, stopField, timeField, weekdayField, monthdayField, footer);
+    content.append(intervalField, stopField, timeField, alarmField, weekdayField, monthdayField, footer);
     editor.appendChild(content);
 
     editUnitSelect.addEventListener('change', () => {
