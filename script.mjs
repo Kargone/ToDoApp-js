@@ -100,7 +100,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/12.15.0/fireba
 import { getDatabase, ref, set, get, push, update, onValue } from 'https://www.gstatic.com/firebasejs/12.15.0/firebase-database.js';
 import { showsInDateTab, resolveTheme, isOverdue, formatTimeCell, shouldOpenSheetOnKey, itemDate, itemTime, toIsoDate } from './view-logic.mjs';
 import { icon } from './icons.mjs';
-import { getChildProjects, getDescendantIds, flattenProjects, hasDate, isHiddenFromDateTabs } from './project-logic.mjs';
+import { getChildProjects, getDescendantIds, flattenProjects, hasDate, isHiddenFromDateTabs, compareOrder, placeId, moveProjectTo } from './project-logic.mjs';
 import { SCHEMA_VERSION, toStored, stableStringify, fromStored, fingerprint, diffCollection, migrateCollection, selectArchivable, buildArchiveUpdates } from './sync-logic.mjs';
 import { getAuth, signInAnonymously, onAuthStateChanged, GoogleAuthProvider, signInWithRedirect, getRedirectResult, signInWithPopup, signOut } from 'https://www.gstatic.com/firebasejs/12.15.0/firebase-auth.js';
 
@@ -317,7 +317,12 @@ function normalizeProjects(data) {
     if (!Array.isArray(data)) return [];
     return data
         .filter((project) => project && project.id && typeof project.name === 'string')
-        .map((project) => ({ id: project.id, name: project.name, parentId: project.parentId || null }));
+        .map((project) => ({
+            id: project.id,
+            name: project.name,
+            parentId: project.parentId || null,
+            ...(Number.isFinite(project.order) ? { order: project.order } : {}),
+        }));
 }
 
 // On every load: bring an old array-shaped user node up to the keyed layout, then listen for changes from any
@@ -941,12 +946,15 @@ function setProjectCollapsed(projectId, collapsed) {
     }
 }
 
-// Open items first by date (undated last), struck-through items at the bottom.
+// Open items first, struck-through items at the bottom. Within each group, the order set by dragging, then by
+// date (undated last) for tasks that were never dragged.
 function sortProjectTasks(items) {
     const sortKey = (item) => (hasDate(item)
         ? unFormatTime(item.dueTime ?? item.startTime, item.dueDate ?? item.startDate ?? getTodayIso())
         : Infinity);
-    return [...items].sort((a, b) => Number(Boolean(a.completed)) - Number(Boolean(b.completed)) || sortKey(a) - sortKey(b));
+    return [...items].sort((a, b) => Number(Boolean(a.completed)) - Number(Boolean(b.completed))
+        || compareOrder(a.projectOrder, b.projectOrder)
+        || sortKey(a) - sortKey(b));
 }
 
 function renderProjectTree() {
@@ -976,6 +984,8 @@ function renderProjectTree() {
             sortProjectTasks(tasksByProject.get(project.id) || []).forEach((task) => {
                 const row = createTaskRow(task, now);
                 row.style.setProperty('--depth', depth + 1);
+                row.dataset.taskId = task.id;
+                row.dataset.ownerProjectId = project.id;
                 todoList.appendChild(row);
             });
             renderLevel(project.id, depth + 1);
@@ -1086,6 +1096,309 @@ async function toggleProject(projectId, head, expanded) {
     }
 }
 
+// ---------- Drag to reorder (Projects tab) ----------
+// Mouse: press and move. Touch and pen: press and hold, then move. A project carries its whole sub-tree.
+// Tasks drop between tasks (or onto a project head, landing first in it); projects drop before or after another
+// project, or onto its middle to nest inside it. The resulting order is saved with the records.
+const DRAG_HOLD_MS = 280;
+const DRAG_SLOP_PX = 6;
+const DRAG_EDGE_PX = 64;
+let pendingDrag = null; // a press that may still turn into a drag
+let drag = null; // the drag in progress
+
+function rowDepth(row) {
+    return Number(row.style.getPropertyValue('--depth')) || 0;
+}
+
+todoList.addEventListener('pointerdown', (event) => {
+    if (activeTab !== 'projects' || searchQuery.trim() || drag || pendingDrag) return;
+    if (!event.isPrimary || event.button !== 0) return;
+    const row = event.target.closest('.row');
+    if (!row || (!row.dataset.projectId && !row.dataset.taskId)) return;
+    if (event.target.closest('input, textarea, select, .row__editor')) return;
+
+    pendingDrag = {
+        row,
+        pointerId: event.pointerId,
+        touch: event.pointerType !== 'mouse',
+        startX: event.clientX,
+        startY: event.clientY,
+        lastX: event.clientX,
+        lastY: event.clientY,
+        timer: null,
+    };
+    if (pendingDrag.touch) pendingDrag.timer = setTimeout(beginDrag, DRAG_HOLD_MS);
+});
+
+document.addEventListener('pointermove', (event) => {
+    if (pendingDrag && event.pointerId === pendingDrag.pointerId) {
+        pendingDrag.lastX = event.clientX;
+        pendingDrag.lastY = event.clientY;
+        if (Math.hypot(event.clientX - pendingDrag.startX, event.clientY - pendingDrag.startY) <= DRAG_SLOP_PX) return;
+        // A finger that moves before the hold is up is scrolling, not dragging.
+        if (pendingDrag.touch) cancelPendingDrag();
+        else beginDrag();
+    }
+    if (drag && event.pointerId === drag.pointerId) {
+        event.preventDefault();
+        drag.pointerX = event.clientX;
+        drag.pointerY = event.clientY;
+        updateDrag();
+    }
+});
+
+document.addEventListener('pointerup', (event) => {
+    if (pendingDrag && event.pointerId === pendingDrag.pointerId) cancelPendingDrag();
+    if (drag && event.pointerId === drag.pointerId) endDrag(true);
+});
+
+document.addEventListener('pointercancel', (event) => {
+    if (pendingDrag && event.pointerId === pendingDrag.pointerId) cancelPendingDrag();
+    if (drag && event.pointerId === drag.pointerId) endDrag(false);
+});
+
+document.addEventListener('keydown', (event) => {
+    if (drag && event.key === 'Escape') {
+        event.preventDefault();
+        endDrag(false);
+    }
+});
+
+// Once a drag has started, the finger moves the row instead of the page.
+document.addEventListener('touchmove', (event) => {
+    if (drag) event.preventDefault();
+}, { passive: false });
+
+// A long press would otherwise open the browser's context menu or text callout.
+todoList.addEventListener('contextmenu', (event) => {
+    if (drag || pendingDrag) event.preventDefault();
+});
+
+function cancelPendingDrag() {
+    if (!pendingDrag) return;
+    clearTimeout(pendingDrag.timer);
+    pendingDrag = null;
+}
+
+function beginDrag() {
+    const { row, pointerId, lastX, lastY } = pendingDrag;
+    cancelPendingDrag();
+    if (!row.isConnected) return;
+    closeMenu({ restoreFocus: false });
+
+    const isProject = Boolean(row.dataset.projectId);
+    const rect = row.getBoundingClientRect();
+    const ghost = row.cloneNode(true);
+    ghost.classList.add('drag-ghost');
+    ghost.setAttribute('aria-hidden', 'true');
+    ghost.style.left = `${rect.left}px`;
+    ghost.style.width = `${rect.width}px`;
+    ghost.style.paddingLeft = getComputedStyle(row).paddingLeft;
+    const indicator = document.createElement('div');
+    indicator.className = 'drop-line';
+    indicator.hidden = true;
+    document.body.append(ghost, indicator);
+
+    const rows = isProject ? [row, ...getProjectRows(row)] : [row];
+    rows.forEach((item) => item.classList.add('row--dragging'));
+    document.body.classList.add('is-dragging');
+    window.getSelection()?.removeAllRanges();
+    navigator.vibrate?.(12);
+
+    drag = {
+        isProject,
+        id: isProject ? row.dataset.projectId : row.dataset.taskId,
+        rows: new Set(rows),
+        ghost,
+        indicator,
+        pointerId,
+        offsetY: lastY - rect.top,
+        startX: lastX,
+        pointerX: lastX,
+        pointerY: lastY,
+        left: rect.left,
+        maxShift: rect.width / 3,
+        depth: rowDepth(row),
+        target: null,
+        scrollFrame: requestAnimationFrame(autoScrollDrag),
+    };
+    updateDrag();
+}
+
+// Near the top or bottom edge of the window, scroll so a row can travel past what's on screen.
+function autoScrollDrag() {
+    if (!drag) return;
+    const headerBottom = document.querySelector('.app-header')?.getBoundingClientRect().bottom || 0;
+    const top = Math.max(headerBottom, 0) + DRAG_EDGE_PX;
+    const bottom = window.innerHeight - DRAG_EDGE_PX;
+    let step = 0;
+    if (drag.pointerY < top) step = -Math.ceil((top - drag.pointerY) / 4);
+    else if (drag.pointerY > bottom) step = Math.ceil((drag.pointerY - bottom) / 4);
+    if (step) {
+        window.scrollBy(0, Math.max(-24, Math.min(24, step)));
+        updateDrag();
+    }
+    drag.scrollFrame = requestAnimationFrame(autoScrollDrag);
+}
+
+function updateDrag() {
+    drag.ghost.style.top = `${drag.pointerY - drag.offsetY}px`;
+    // A project's ghost follows the pointer sideways too, since that picks the nesting level.
+    if (drag.isProject) {
+        const shift = Math.max(-drag.maxShift, Math.min(drag.maxShift, drag.pointerX - drag.startX));
+        drag.ghost.style.left = `${drag.left + shift}px`;
+    }
+    drag.target = findDropTarget(drag.pointerY);
+    showDropTarget(drag.target);
+}
+
+// The row under y and how far down it y sits (0–1). Above or below the list, the nearest end row.
+// Rows being dragged don't count; over them there is no target.
+function rowAtY(y) {
+    const rows = Array.from(todoList.children).filter((row) => row.classList.contains('row') && !drag.rows.has(row));
+    if (!rows.length) return null;
+    if (y < rows[0].getBoundingClientRect().top) return { row: rows[0], fraction: 0 };
+    for (const row of rows) {
+        const rect = row.getBoundingClientRect();
+        if (y >= rect.top && y < rect.bottom) return { row, fraction: (y - rect.top) / rect.height };
+    }
+    const last = rows[rows.length - 1];
+    if (y >= last.getBoundingClientRect().bottom) return { row: last, fraction: 1, below: true };
+    return null;
+}
+
+function getProjectHead(projectId) {
+    return todoList.querySelector(`.project-head[data-project-id="${CSS.escape(projectId)}"]`);
+}
+
+// Task ids in a project, top to bottom as the tree shows them (also for a collapsed project).
+function getProjectTaskOrder(projectId) {
+    return sortProjectTasks(getItemsForTab().filter((item) => item.projectId === projectId)).map((item) => item.id);
+}
+
+function findDropTarget(y) {
+    const hit = rowAtY(y);
+    if (!hit) return null;
+    return drag.isProject ? findProjectDropTarget(hit) : findTaskDropTarget(hit);
+}
+
+function findTaskDropTarget({ row, fraction }) {
+    if (row.dataset.projectId) {
+        const order = getProjectTaskOrder(row.dataset.projectId).filter((id) => id !== drag.id);
+        return { kind: 'into', projectId: row.dataset.projectId, beforeId: order[0] ?? null, highlight: row };
+    }
+    const projectId = row.dataset.ownerProjectId;
+    if (fraction < 0.5) return { kind: 'line', projectId, beforeId: row.dataset.taskId, lineRow: row, lineAt: 'top' };
+    const order = getProjectTaskOrder(projectId).filter((id) => id !== drag.id);
+    const next = order[order.indexOf(row.dataset.taskId) + 1] ?? null;
+    return { kind: 'line', projectId, beforeId: next, lineRow: row, lineAt: 'bottom' };
+}
+
+// Levels the gap under a row can close: its project, then each ancestor whose visible sub-tree ends at the
+// same row. Deepest first. Empty when the row isn't the last one of its project's sub-tree.
+function getClosingLevels(row, head) {
+    const levels = [];
+    for (let project = projects.find((item) => item.id === head.dataset.projectId); project;
+        project = projects.find((item) => item.id === project.parentId)) {
+        const projectHead = getProjectHead(project.id);
+        if (!projectHead) break;
+        const rows = [projectHead, ...getProjectRows(projectHead)].filter((item) => !drag.rows.has(item));
+        if (rows[rows.length - 1] !== row) break;
+        levels.push({ project, head: projectHead });
+    }
+    return levels;
+}
+
+function resolveParent(project) {
+    return projects.some((item) => item.id === project.parentId) ? project.parentId : null;
+}
+
+function findProjectDropTarget({ row, fraction, below }) {
+    // Over a task, act as if over its project's head, so hovering a project's tasks nests into it.
+    const head = row.dataset.projectId ? row : getProjectHead(row.dataset.ownerProjectId);
+    if (!head) return null;
+    const target = projects.find((project) => project.id === head.dataset.projectId);
+    if (!target || target.id === drag.id || getDescendantIds(projects, drag.id).includes(target.id)) return null;
+
+    if (row === head && fraction < 0.3) {
+        return { kind: 'line', parentId: resolveParent(target), beforeId: target.id, lineRow: head, lineAt: 'top', depth: rowDepth(head) };
+    }
+
+    // Under the last row of a nested group, the gap is "after" several projects at once. Sliding the pointer
+    // left picks a shallower one, out to the top level; below the whole list it is always the top level.
+    const levels = fraction > (row === head ? 0.7 : 0.5) ? getClosingLevels(row, head) : [];
+    if (levels.length) {
+        const wanted = below ? -Infinity : drag.depth + Math.round((drag.pointerX - drag.startX) / 24);
+        const level = levels.find((item) => rowDepth(item.head) <= wanted) ?? levels[levels.length - 1];
+        const parentId = resolveParent(level.project);
+        const siblings = getChildProjects(projects, parentId).map((project) => project.id).filter((id) => id !== drag.id);
+        const beforeId = siblings[siblings.indexOf(level.project.id) + 1] ?? null;
+        return { kind: 'line', parentId, beforeId, lineRow: row, lineAt: 'bottom', depth: rowDepth(level.head) };
+    }
+    return { kind: 'into', parentId: target.id, beforeId: null, highlight: head };
+}
+
+function showDropTarget(target) {
+    todoList.querySelectorAll('.row--drop-into').forEach((row) => row.classList.remove('row--drop-into'));
+    drag.indicator.hidden = !target || target.kind !== 'line';
+    if (!target) return;
+    if (target.kind === 'into') {
+        target.highlight.classList.add('row--drop-into');
+        return;
+    }
+    const rect = target.lineRow.getBoundingClientRect();
+    const indent = 8 + (target.depth ?? rowDepth(target.lineRow)) * 20;
+    drag.indicator.style.top = `${(target.lineAt === 'top' ? rect.top : rect.bottom) - 1}px`;
+    drag.indicator.style.left = `${rect.left + indent}px`;
+    drag.indicator.style.width = `${Math.max(rect.width - indent - 6, 24)}px`;
+}
+
+function endDrag(commit) {
+    const { target, ghost, indicator, rows, scrollFrame, isProject, id } = drag;
+    cancelAnimationFrame(scrollFrame);
+    ghost.remove();
+    indicator.remove();
+    rows.forEach((row) => row.classList.remove('row--dragging'));
+    todoList.querySelectorAll('.row--drop-into').forEach((row) => row.classList.remove('row--drop-into'));
+    document.body.classList.remove('is-dragging');
+    drag = null;
+
+    // The release would otherwise land as a click on whatever is under it (a checkbox, a project toggle).
+    const swallowClick = (event) => {
+        event.stopPropagation();
+        event.preventDefault();
+    };
+    window.addEventListener('click', swallowClick, { capture: true, once: true });
+    setTimeout(() => window.removeEventListener('click', swallowClick, { capture: true }), 0);
+
+    if (!commit || !target) return;
+    if (isProject) dropProject(id, target);
+    else dropTask(id, target);
+}
+
+function dropProject(projectId, target) {
+    const next = moveProjectTo(projects, projectId, target.parentId, target.beforeId);
+    if (next === projects) return;
+    projects = next;
+    if (target.kind === 'into') setProjectCollapsed(target.parentId, false);
+    saveProjects();
+    renderTasks();
+}
+
+function dropTask(taskId, target) {
+    const task = tasks.find((item) => item.id === taskId);
+    if (!task) return;
+    const order = placeId(getProjectTaskOrder(target.projectId), taskId, target.beforeId);
+    const position = new Map(order.map((id, index) => [id, index]));
+    task.projectId = target.projectId;
+    tasks.forEach((item) => {
+        if (position.has(item.id)) item.projectOrder = position.get(item.id);
+    });
+    if (target.kind === 'into') setProjectCollapsed(target.projectId, false);
+    saveTasks();
+    renderTasks();
+}
+
 function getProjectMenuItems(project, anchor) {
     return [
         { label: 'Add task', icon: 'plus', onSelect: () => openSheet({ projectId: project.id }) },
@@ -1137,7 +1450,7 @@ function renameProject(projectId) {
 }
 
 function moveProject(projectId, parentId) {
-    projects = projects.map((project) => (project.id === projectId ? { ...project, parentId } : project));
+    projects = moveProjectTo(projects, projectId, parentId);
     if (parentId) setProjectCollapsed(parentId, false);
     saveProjects();
     renderTasks();
@@ -2164,7 +2477,7 @@ accountButton.addEventListener('click', () => openMenu(accountButton, [
 // Re-render when the page comes back into view and once a minute, so the date line, overdue colors and
 // yesterday's struck-through items stay current. Skipped while the user is mid-interaction.
 function isInteracting() {
-    return Boolean(openMenuState || editingTaskId || repeatEditorTaskId || projectToggleBusy);
+    return Boolean(openMenuState || editingTaskId || repeatEditorTaskId || projectToggleBusy || drag || pendingDrag);
 }
 
 function refreshIfIdle() {

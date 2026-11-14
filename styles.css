@@ -684,6 +684,59 @@ svg {
   overflow-wrap: anywhere;
 }
 
+/* Rows can be dragged to reorder: keep a long press from selecting text or opening the touch callout. */
+.list--tree .row {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.list--tree .row input {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.row--dragging {
+  opacity: 0.35;
+}
+
+.row--drop-into {
+  border-radius: var(--r-sm);
+  background: var(--panel);
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+}
+
+.drag-ghost {
+  position: fixed;
+  z-index: 60;
+  margin: 0;
+  list-style: none;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--bg);
+  box-shadow: var(--float-shadow);
+  pointer-events: none;
+  transform: scale(1.015);
+}
+
+.drop-line {
+  position: fixed;
+  z-index: 59;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--accent);
+  pointer-events: none;
+}
+
+.drop-line[hidden] {
+  display: none;
+}
+
+body.is-dragging,
+body.is-dragging * {
+  cursor: grabbing !important;
+}
+
 /* ---------- Floating new-item ---------- */
 
 .list-actions {
