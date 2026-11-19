@@ -2374,8 +2374,12 @@ todoForm.addEventListener('submit', (event) => {
 });
 
 // A project's "Add task" preselects it and starts undated, since project tasks usually have no date.
+// Where focus goes back to when the sheet closes; a project's menu button when opened from there.
+let sheetOpener = null;
+
 function openSheet({ projectId } = {}) {
     if (addSheet.open) return;
+    sheetOpener = openMenuState?.anchor || document.activeElement;
     closeMenu({ restoreFocus: false });
     populateProjectSelect(projectId || projectSelect.value);
     if (projectId) {
@@ -2401,7 +2405,12 @@ addSheet.addEventListener('click', (event) => {
     if (event.target === addSheet) closeSheet();
 });
 
-addSheet.addEventListener('close', () => newItemButton.focus());
+// preventScroll keeps the list where it was; the New item button sits below a long list.
+addSheet.addEventListener('close', () => {
+    const target = sheetOpener?.isConnected && sheetOpener !== document.body ? sheetOpener : newItemButton;
+    sheetOpener = null;
+    target.focus({ preventScroll: true });
+});
 
 document.addEventListener('keydown', (event) => {
     if (appShell.classList.contains('hidden') || addSheet.open || openMenuState) return;
