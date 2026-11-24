@@ -72,3 +72,22 @@ export function shouldOpenSheetOnKey(event) {
     if (target.isContentEditable) return false;
     return !['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName);
 }
+
+// Parse a typed clock time into "HH:mm". Accepts 24-hour ("9:05", "18:30") and 12-hour
+// ("9pm", "9:30 PM", "12 am") forms. Returns null when the text is not a real time.
+export function parseClockInput(text) {
+    const match = /^(\d{1,2})(?:[:.](\d{2}))?\s*([ap])?\.?\s*m?\.?$/i.exec(String(text).trim());
+    if (!match) return null;
+    let hour = Number(match[1]);
+    const minute = match[2] === undefined ? 0 : Number(match[2]);
+    const meridiem = match[3]?.toLowerCase();
+    if (minute > 59) return null;
+    if (meridiem) {
+        if (hour < 1 || hour > 12) return null;
+        hour = (hour % 12) + (meridiem === 'p' ? 12 : 0);
+    } else if (match[2] === undefined || hour > 23) {
+        // A bare number like "9" is ambiguous without am/pm; require minutes in 24-hour form.
+        return null;
+    }
+    return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+}

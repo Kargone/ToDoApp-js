@@ -951,7 +951,8 @@ body.is-dragging * {
 }
 
 /* Space the alarm divider/switch/controls like the form's own 14px-gap children. */
-#alarm-row {
+#alarm-row,
+#notification-row {
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -1166,4 +1167,15 @@ body.is-dragging * {
     animation: none !important;
     transition: none !important;
   }
+}
+
+/* Invisible date input that anchors the native picker for "Pick a date…" in the row menu. */
+.date-pick-proxy {
+  position: fixed;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  pointer-events: none;
 }

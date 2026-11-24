@@ -54,6 +54,10 @@ const alarmRow = document.getElementById('alarm-row');
 const alarmControls = document.getElementById('alarm-controls');
 const alarmTaskCheckbox = document.getElementById('alarm-task');
 const alarmTimeInput = document.getElementById('alarm-time');
+const notificationRow = document.getElementById('notification-row');
+const notificationControls = document.getElementById('notification-controls');
+const notificationTaskCheckbox = document.getElementById('notification-task');
+const notifyTimeInput = document.getElementById('notification-time');
 
 function initializeFirebase() {
     onAuthStateChanged(auth, (user) => {
@@ -98,7 +102,7 @@ let projects = [];
 // Import the functions you need from the SDKs you need
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-app.js";
 import { getDatabase, ref, set, get, push, update, onValue } from 'https://www.gstatic.com/firebasejs/12.15.0/firebase-database.js';
-import { showsInDateTab, resolveTheme, isOverdue, formatTimeCell, shouldOpenSheetOnKey, itemDate, itemTime, toIsoDate } from './view-logic.mjs';
+import { showsInDateTab, resolveTheme, isOverdue, formatTimeCell, shouldOpenSheetOnKey, itemDate, itemTime, toIsoDate, parseClockInput } from './view-logic.mjs';
 import { icon } from './icons.mjs';
 import { getChildProjects, getDescendantIds, flattenProjects, hasDate, isHiddenFromDateTabs, compareOrder, placeId, moveProjectTo } from './project-logic.mjs';
 import { SCHEMA_VERSION, toStored, stableStringify, fromStored, fingerprint, diffCollection, migrateCollection, selectArchivable, buildArchiveUpdates } from './sync-logic.mjs';
@@ -551,6 +555,13 @@ function createRepeatEditor(task) {
     <input type="time" class="edit-repeat-alarm" value="${task.alarmTime || ''}" />
   `;
 
+    const notifyField = document.createElement('div');
+    notifyField.className = 'field';
+    notifyField.innerHTML = `
+    <label>Notification time <span>(optional)</span></label>
+    <input type="time" class="edit-repeat-notify" value="${task.notifyTime || ''}" />
+  `;
+
     const weekdayField = document.createElement('div');
     weekdayField.className = 'field edit-weekday-field hidden';
     const selectedWeekdays = task.repeatRule.daysOfWeek ?? [0, 1, 2, 3, 4, 5, 6];
@@ -602,6 +613,10 @@ function createRepeatEditor(task) {
         if (alarmValue) task.alarmTime = alarmValue;
         else delete task.alarmTime;
 
+        const notifyValue = notifyField.querySelector('.edit-repeat-notify').value;
+        if (notifyValue) task.notifyTime = notifyValue;
+        else delete task.notifyTime;
+
         repeatEditorTaskId = null;
         saveTasks();
         renderTasks();
@@ -619,7 +634,7 @@ function createRepeatEditor(task) {
     });
 
     footer.append(removeButton, saveButton);
-    content.append(intervalField, stopField, timeField, alarmField, weekdayField, monthdayField, footer);
+    content.append(intervalField, stopField, timeField, alarmField, notifyField, weekdayField, monthdayField, footer);
     editor.appendChild(content);
 
     editUnitSelect.addEventListener('change', () => {
@@ -1538,6 +1553,7 @@ function createTaskRow(task, now) {
     if (task.repeatRule) metaParts.push(`${icon('repeat', 'icon-sm')}<span>${escapeHtml(formatRepeatLabel(task.repeatRule))}</span>`);
     if (task.type === 'event' && task.endTime) metaParts.push(`<span>until ${escapeHtml(task.endTime)}</span>`);
     if (task.alarmTime && !task.completed) metaParts.push(`${icon('alarm', 'icon-sm')}<span>${escapeHtml(formatTime(task.alarmTime))}</span>`);
+    if (task.notifyTime && !task.completed) metaParts.push(`${icon('notification', 'icon-sm')}<span>${escapeHtml(formatTime(task.notifyTime))}</span>`);
     if (metaParts.length) {
         const meta = document.createElement('div');
         meta.className = 'row__meta';
@@ -1694,7 +1710,7 @@ function getRowMenuItems(task, anchor) {
 
     const projectItems = getTaskProjectMenuItems(task, anchor);
     const tail = projectItems.length ? [...projectItems, 'sep', deleteItem] : [deleteItem];
-    const alarmItems = getAlarmMenuItems(task);
+    const alarmItems = [...getReminderMenuItems(task, 'alarm'), ...getReminderMenuItems(task, 'notification')];
 
     if (activeTab === 'projects') {
         return alarmItems.length ? [...alarmItems, 'sep', ...tail] : tail;
@@ -1719,49 +1735,107 @@ function getRowMenuItems(task, anchor) {
         { label: 'Tomorrow', icon: 'calendar', hint: '+1d', onSelect: () => postponeTask(task.id, 1) },
         { label: 'In 2 days', icon: 'arrow-right', hint: '+2d', onSelect: () => postponeTask(task.id, 2) },
         { label: 'In 3 days', icon: 'arrow-skip', hint: '+3d', onSelect: () => postponeTask(task.id, 3) },
+        { label: 'Pick a date…', icon: 'calendar-pick', onSelect: () => pickPostponeDate(task, anchor) },
         ...(alarmItems.length ? ['sep', ...alarmItems] : []),
         'sep',
         ...tail,
     ];
 }
 
-// Set / change / remove an item's alarm from the row menu. Only dated, non-virtual items can ring.
-// The web app stores and displays the time; the Android app is what actually rings it.
-function getAlarmMenuItems(task) {
+// Alarms and notifications are both an optional "HH:mm" on a dated, non-virtual item, set from the
+// row menu. The web app only stores and displays them; the Android app is what rings / notifies.
+const REMINDERS = {
+    alarm: { field: 'alarmTime', noun: 'alarm', icon: 'alarm' },
+    notification: { field: 'notifyTime', noun: 'notification', icon: 'notification' },
+};
+
+function getReminderMenuItems(task, kind) {
     if (task.isVirtual || !hasDate(task)) return [];
-    const has = Boolean(task.alarmTime);
+    const { field, noun, icon: iconName } = REMINDERS[kind];
+    const has = Boolean(task[field]);
     const items = [{
-        label: has ? `Change alarm · ${formatTime(task.alarmTime)}` : 'Set alarm',
-        icon: 'alarm',
-        onSelect: () => editAlarm(task),
+        label: has ? `Change ${noun} · ${formatTime(task[field])}` : `Set ${noun}`,
+        icon: iconName,
+        onSelect: () => editReminder(task, kind),
     }];
     if (has) {
-        items.push({ label: 'Remove alarm', icon: 'x', onSelect: () => setAlarm(task, null) });
+        items.push({ label: `Remove ${noun}`, icon: 'x', onSelect: () => setReminder(task, kind, null) });
     }
     return items;
 }
 
-function setAlarm(task, value) {
-    if (value) task.alarmTime = value;
-    else delete task.alarmTime;
+function setReminder(task, kind, value) {
+    const { field } = REMINDERS[kind];
+    if (value) task[field] = value;
+    else delete task[field];
     saveTasks();
     renderTasks();
 }
 
-function editAlarm(task) {
-    const base = task.alarmTime || itemTime(task) || '09:00';
-    const input = window.prompt('Alarm time (24-hour HH:MM)', base);
+function editReminder(task, kind) {
+    const { field, noun } = REMINDERS[kind];
+    const base = task[field] || itemTime(task) || '09:00';
+    const input = window.prompt(`${noun[0].toUpperCase()}${noun.slice(1)} time (e.g. 09:00, 18:30 or 6:30 pm). Leave empty to remove.`, base);
     if (input === null) return;
     const trimmed = input.trim();
     if (!trimmed) {
-        setAlarm(task, null);
+        setReminder(task, kind, null);
         return;
     }
-    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(trimmed)) {
-        window.alert('Enter the time as HH:MM in 24-hour format, e.g. 09:00 or 18:30.');
+    const parsed = parseClockInput(trimmed);
+    if (!parsed) {
+        window.alert('That is not a time. Try 09:00, 18:30 or 6:30 pm.');
         return;
     }
-    setAlarm(task, trimmed);
+    setReminder(task, kind, parsed);
+}
+
+// "Pick a date…" postpone: open the browser's date picker beside the row's menu button and move the
+// item to the chosen day. Falls back to a prompt where showPicker() is unavailable.
+function pickPostponeDate(task, anchor) {
+    const today = getTodayIso();
+    const current = itemDate(task) || today;
+    const input = document.createElement('input');
+    input.type = 'date';
+    input.min = today;
+    input.value = current < today ? today : current;
+    input.className = 'date-pick-proxy';
+    const rect = anchor.getBoundingClientRect();
+    input.style.left = `${rect.left}px`;
+    input.style.top = `${rect.bottom}px`;
+    document.body.appendChild(input);
+
+    let done = false;
+    const finish = () => {
+        if (done) return;
+        done = true;
+        const value = input.value;
+        input.remove();
+        if (value && value >= today && value !== current) moveTaskToDate(task.id, value);
+    };
+    input.addEventListener('change', finish);
+    // Dismissing the picker fires "cancel" (or nothing, in older browsers): tidy up either way.
+    input.addEventListener('cancel', finish);
+    setTimeout(() => document.addEventListener('pointerdown', finish, { once: true }), 0);
+
+    try {
+        input.showPicker();
+    } catch {
+        input.remove();
+        done = true;
+        const typed = window.prompt('Move to date (YYYY-MM-DD, today or later)', current < today ? today : current);
+        if (typed === null) return;
+        const trimmed = typed.trim();
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed) || Number.isNaN(new Date(`${trimmed}T00:00:00`).getTime())) {
+            window.alert('Enter the date as YYYY-MM-DD, e.g. 2026-12-25.');
+            return;
+        }
+        if (trimmed < today) {
+            window.alert('Pick today or a later date.');
+            return;
+        }
+        if (trimmed !== current) moveTaskToDate(task.id, trimmed);
+    }
 }
 
 function escapeHtml(value) {
@@ -1921,6 +1995,9 @@ function addTask(text) {
     if (dated && alarmTaskCheckbox.checked && alarmTimeInput.value) {
         item.alarmTime = alarmTimeInput.value;
     }
+    if (dated && notificationTaskCheckbox.checked && notifyTimeInput.value) {
+        item.notifyTime = notifyTimeInput.value;
+    }
 
     pushTask(item);
     renderTasks();
@@ -1974,6 +2051,17 @@ function postponeTask(taskId, days) {
 
     console.log(tasks)
 
+    saveTasks();
+    renderTasks();
+}
+
+// Move a dated item to a specific day. Clears any "Later today" hold, since the day itself changes.
+function moveTaskToDate(taskId, dateIso) {
+    tasks = tasks.map((task) => {
+        if (task.id !== taskId || task.noDue) return task;
+        const { minShowTime, ...rest } = task;
+        return task.type === 'event' ? { ...rest, startDate: dateIso } : { ...rest, dueDate: dateIso };
+    });
     saveTasks();
     renderTasks();
 }
@@ -2155,6 +2243,11 @@ function updateAlarmVisibility() {
     const on = dated && alarmTaskCheckbox.checked;
     alarmControls.classList.toggle('hidden', !on);
     if (on && !alarmTimeInput.value) alarmTimeInput.value = '09:00';
+
+    notificationRow.classList.toggle('hidden', !dated);
+    const notifyOn = dated && notificationTaskCheckbox.checked;
+    notificationControls.classList.toggle('hidden', !notifyOn);
+    if (notifyOn && !notifyTimeInput.value) notifyTimeInput.value = '09:00';
 }
 
 function updateRepeatVisibility() {
@@ -2244,6 +2337,7 @@ noDueCheckbox.addEventListener('change', () => {
 
 repeatTaskCheckbox.addEventListener('change', updateRepeatVisibility);
 alarmTaskCheckbox.addEventListener('change', updateAlarmVisibility);
+notificationTaskCheckbox.addEventListener('change', updateAlarmVisibility);
 repeatUnitSelect.addEventListener('change', updateRepeatFieldVisibility);
 repeatMonthPatternSelect.addEventListener('change', updateRepeatFieldVisibility);
 itemTypeSelect.addEventListener('change', () => {
@@ -2365,6 +2459,8 @@ todoForm.addEventListener('submit', (event) => {
     noDueCheckbox.checked = false;
     alarmTaskCheckbox.checked = false;
     alarmTimeInput.value = '';
+    notificationTaskCheckbox.checked = false;
+    notifyTimeInput.value = '';
     projectSelect.value = '';
     inDateTabsCheckbox.checked = false;
     updateNoDueState();
